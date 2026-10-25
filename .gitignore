@@ -1,0 +1,18 @@
+# 虚拟环境（含本机绝对路径，不可复用）
+venv/
+.venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 运行日志
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

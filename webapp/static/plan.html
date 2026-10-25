@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ImmerseHome · 户型图识别</title>
+<style>
+  :root {
+    --amber: #E9A24C; --amber-2: #F7CB84;
+    --amber-grad: linear-gradient(135deg, #F9D49A 0%, #E9A24C 100%);
+    --coral: #E0704D; --sage: #93AB96;
+    --glass: rgba(26, 20, 15, 0.50); --glass-2: rgba(26, 20, 15, 0.66);
+    --hair: rgba(255, 255, 255, 0.20); --hair-2: rgba(255, 255, 255, 0.38);
+    --t1: rgba(255,255,255,.96); --t2: rgba(255,255,255,.78); --t3: rgba(255,255,255,.50);
+    --shadow: 0 26px 68px rgba(0,0,0,.36);
+    --blur: blur(32px) saturate(150%);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    background: #14100b; color: var(--t1); -webkit-font-smoothing: antialiased;
+  }
+
+  /* 顶栏 */
+  .top {
+    position: fixed; top: 0; left: 0; right: 0; height: 62px; z-index: 40;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; border-bottom: 1px solid rgba(255,255,255,.08);
+    background: rgba(18,14,10,.72); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand-logo {
+    width: 34px; height: 34px; border-radius: 11px; background: var(--amber-grad);
+    display: grid; place-items: center; color: #3a2708; font-size: 16px;
+    box-shadow: 0 6px 18px rgba(233,162,76,.4);
+  }
+  .brand b { font-size: 14.5px; letter-spacing: .3px; }
+  .brand span { display: block; font-size: 10.5px; color: var(--t3); margin-top: 2px; letter-spacing: .06em; }
+  .steps-top { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--t3); }
+  .steps-top i {
+    width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--hair-2); font-style: normal; font-size: 9.5px; font-weight: 700;
+  }
+  .steps-top b { font-weight: 600; color: var(--t2); }
+  .steps-top .done i { background: var(--amber-grad); border-color: transparent; color: #3a2708; }
+  .steps-top .sep { opacity: .35; }
+
+  .gbtn {
+    font-family: inherit; cursor: pointer; height: 34px; padding: 0 16px; border-radius: 18px;
+    background: rgba(255,255,255,.10); border: 1px solid var(--hair); color: var(--t2);
+    font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+    transition: all .16s;
+  }
+  .gbtn:hover { background: rgba(255,255,255,.20); color: var(--t1); }
+  .gbtn.amber { background: var(--amber-grad); color: #3a2708; border-color: transparent; box-shadow: 0 6px 18px rgba(233,162,76,.36); }
+  .gbtn.amber:hover { filter: brightness(1.06); }
+  .gbtn:disabled { opacity: .45; cursor: default; }
+  .gbtn.sm { height: 28px; padding: 0 11px; font-size: 11.5px; border-radius: 14px; }
+
+  /* 左工具栏 */
+  .tools {
+    position: fixed; left: 20px; top: 86px; bottom: 24px; width: 196px; z-index: 30;
+    display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto;
+  }
+  .tool-group {
+    background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--hair); border-radius: 18px; padding: 13px;
+  }
+  .grp-lab { font-size: 10px; letter-spacing: .16em; color: var(--t3); font-weight: 700; margin-bottom: 9px; }
+  .tbtn {
+    width: 100%; font-family: inherit; cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 11px; border-radius: 12px; margin-bottom: 4px;
+    background: transparent; border: 1px solid transparent; color: var(--t2);
+    font-size: 12.5px; font-weight: 600; transition: all .15s;
+  }
+  .tbtn:hover { background: rgba(255,255,255,.10); color: var(--t1); }
+  .tbtn.on { background: var(--amber-grad); color: #3a2708; box-shadow: 0 4px 14px rgba(233,162,76,.34); }
+  .tbtn em { font-style: normal; font-size: 14px; width: 16px; text-align: center; }
+  .hint { font-size: 10.5px; line-height: 1.6; color: var(--t3); margin-top: 6px; }
+
+  .pal { display: flex; flex-direction: column; gap: 6px; }
+  .pal-cat {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .14em; color: var(--t3);
+    padding: 4px 2px 1px; text-transform: uppercase;
+  }
+  .pal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .pal button {
+    font-family: inherit; cursor: grab; padding: 8px 6px; border-radius: 11px;
+    background: rgba(255,255,255,.07); border: 1px solid var(--hair); color: var(--t2);
+    font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    transition: all .15s;
+  }
+  .pal button:hover { background: rgba(255,255,255,.16); color: var(--t1); }
+  .pal button em { font-style: normal; font-size: 15px; }
+
+  #propBody label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; color: var(--t2); margin-top: 7px;
+  }
+  #propBody input {
+    width: 66px; background: rgba(255,255,255,.07); border: 1px solid var(--hair);
+    color: var(--t1); border-radius: 8px; padding: 4px 6px;
+    font-family: inherit; font-size: 11.5px;
+  }
+  .prop-name { font-size: 12px; font-weight: 700; color: var(--t1); }
+  #propBody .tbtn { margin-top: 9px; width: 100%; }
+
+  /* 画布 */
+  .stage {
+    position: fixed; left: 236px; right: 356px; top: 86px; bottom: 24px; z-index: 10;
+    border-radius: 22px; overflow: hidden;
+    background: #1d1811;
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: var(--shadow);
+  }
+  .stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  .stage.dragging canvas { cursor: grabbing; }
+  .stage .empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; text-align: center;
+    pointer-events: none;
+  }
+  .stage .empty.off { display: none; }
+  .dropzone {
+    width: 380px; padding: 34px 26px; border-radius: 22px;
+    border: 1.5px dashed rgba(255,255,255,.28); background: rgba(255,255,255,.03);
+    pointer-events: auto; cursor: pointer; transition: all .2s;
+  }
+  .dropzone:hover { border-color: var(--amber); background: rgba(233,162,76,.07); }
+  .dropzone h3 { font-size: 15px; margin-bottom: 7px; }
+  .dropzone p { font-size: 11.5px; color: var(--t3); line-height: 1.7; }
+  .dropzone .big { font-size: 30px; margin-bottom: 10px; opacity: .7; }
+
+  .zoombar {
+    position: absolute; right: 14px; bottom: 14px; display: flex; gap: 4px;
+    background: var(--glass-2); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--hair); border-radius: 14px; padding: 4px;
+  }
+  .zoombar button {
+    width: 28px; height: 28px; border-radius: 10px; cursor: pointer;
+    background: transparent; border: 0; color: var(--t2); font-size: 14px; font-family: inherit;
+  }
+  .zoombar button:hover { background: rgba(255,255,255,.14); color: #fff; }
+
+  /* 右结果面板 */
+  .side {
+    position: fixed; right: 20px; top: 86px; bottom: 24px; width: 322px; z-index: 30;
+    display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+  }
+  .card {
+    background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--hair); border-radius: 20px; padding: 16px; box-shadow: var(--shadow);
+  }
+  .card h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .card .sub { font-size: 11px; color: var(--t3); line-height: 1.6; }
+  .kv { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .kv:last-child { border-bottom: 0; }
+  .kv b { font-weight: 700; color: var(--amber-2); }
+
+  .score { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; }
+  .score .n { font-size: 34px; font-weight: 800; line-height: 1; }
+  .score .n.h { color: #F0937A; } .score .n.m { color: var(--amber-2); } .score .n.l { color: #B4C9B7; }
+  .score .cap { font-size: 10.5px; color: var(--t3); }
+
+  .vitem {
+    display: flex; gap: 8px; align-items: flex-start; padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,.07); font-size: 11.5px; line-height: 1.55; color: var(--t2);
+  }
+  .vitem:last-child { border-bottom: 0; }
+  .vitem .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex: 0 0 auto; }
+  .vitem b { color: var(--t1); font-weight: 600; display: block; }
+  .vitem span.sg { color: var(--amber-2); display: block; margin-top: 2px; }
+  .empty-say { font-size: 11.5px; color: var(--t3); line-height: 1.7; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(8px);
+    z-index: 90; padding: 10px 20px; border-radius: 18px;
+    background: rgba(26,20,15,.86); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--hair-2); font-size: 12.5px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: all .25s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 100; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(10,7,4,.62); backdrop-filter: blur(6px);
+  }
+  .modal.show { display: flex; }
+  .modal .box {
+    width: 380px; padding: 24px; border-radius: 22px;
+    background: rgba(28,22,16,.92); border: 1px solid var(--hair-2); box-shadow: var(--shadow);
+  }
+  .modal h3 { font-size: 15px; margin-bottom: 8px; }
+  .modal p { font-size: 11.5px; color: var(--t3); line-height: 1.7; margin-bottom: 14px; }
+  .modal input {
+    width: 100%; height: 38px; border-radius: 12px; padding: 0 12px;
+    background: rgba(255,255,255,.08); border: 1px solid var(--hair);
+    color: #fff; font-family: inherit; font-size: 13px; margin-bottom: 14px;
+  }
+  .modal input:focus { outline: none; border-color: var(--amber); }
+  .modal .row { display: flex; gap: 8px; justify-content: flex-end; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <div class="brand-logo">⌂</div>
+    <div><b>ImmerseHome</b><span>户型图识别 · 建面 2D→3D</span></div>
+  </div>
+  <div class="steps-top" id="stepsTop">
+    <span class="done"><i>1</i><b>上传图纸</b></span><span class="sep">›</span>
+    <span><i>2</i><b>校准比例</b></span><span class="sep">›</span>
+    <span><i>3</i><b>核对墙体</b></span><span class="sep">›</span>
+    <span><i>4</i><b>摆放家具</b></span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="gbtn" id="btnDetect" disabled>自动识墙</button>
+    <button class="gbtn amber" id="btnGo3D" disabled>生成 3D →</button>
+  </div>
+</header>
+
+<!-- 左工具栏 -->
+<aside class="tools">
+  <div class="tool-group">
+    <div class="grp-lab">图纸</div>
+    <button class="tbtn" id="btnUpload"><em>⬆</em>上传户型图</button>
+    <button class="tbtn" id="btnDemo"><em>▤</em>载入示例图纸</button>
+    <input type="file" id="fileInput" accept="image/*" />
+    <div class="hint">支持 JPG / PNG，也可直接把图片拖进画布</div>
+  </div>
+
+  <div class="tool-group">
+    <div class="grp-lab">工具</div>
+    <button class="tbtn on" data-tool="pan"><em>✥</em>浏览</button>
+    <button class="tbtn" data-tool="scale"><em>⟷</em>标定比例</button>
+    <button class="tbtn" data-tool="wall"><em>╱</em>画墙</button>
+    <button class="tbtn" data-tool="door"><em>🚪</em>标门</button>
+    <button class="tbtn" data-tool="window"><em>▭</em>标窗</button>
+    <button class="tbtn" data-tool="erase"><em>✕</em>删除</button>
+  </div>
+
+  <div class="tool-group">
+    <div class="grp-lab">家具（拖到图上）</div>
+    <div class="pal" id="palette"></div>
+    <div class="hint">拖入后可拖动 · 拖顶端圆柄自由旋转 · Q/E 微调 · R 转90° · F 翻转 · Delete 删除</div>
+  </div>
+
+  <div class="tool-group" id="propBox" style="display:none">
+    <div class="grp-lab">选中项</div>
+    <div id="propBody"></div>
+  </div>
+
+  <div class="tool-group">
+    <div class="grp-lab">识别设置</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--t2)">
+      <input type="checkbox" id="chkBinarize" checked> 二值化预处理
+    </label>
+    <div style="margin-top:10px;font-size:10.5px;color:var(--t3)">墙线灵敏度</div>
+    <input type="range" id="sens" min="10" max="90" value="42" style="width:100%;margin-top:6px" />
+  </div>
+</aside>
+
+<!-- 画布 -->
+<div class="stage" id="stage">
+  <canvas id="cv"></canvas>
+  <div class="empty" id="empty">
+    <div class="dropzone" id="dropzone">
+      <div class="big">🗺</div>
+      <h3>拖入一张户型图</h3>
+      <p>开发商平面图、中介户型图、手绘草图都行。<br />上传后自动识别墙线，也可手动描。</p>
+    </div>
+  </div>
+  <div class="zoombar">
+    <button id="zIn">＋</button><button id="zOut">－</button><button id="zFit">⊙</button>
+  </div>
+</div>
+
+<!-- 右面板 -->
+<aside class="side">
+  <div class="card">
+    <h4>图纸信息</h4>
+    <div class="sub" id="imgInfo">尚未上传</div>
+    <div style="margin-top:10px">
+      <div class="kv"><span>比例</span><b id="kScale">未标定</b></div>
+      <div class="kv"><span>墙体段</span><b id="kWall">0</b></div>
+      <div class="kv"><span>门 / 窗</span><b id="kDoor">0 / 0</b></div>
+      <div class="kv"><span>家具</span><b id="kFurn">0</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>实时光环境体检</h4>
+    <div class="sub" id="auditSub">摆放家具后自动调用 18 条规则引擎</div>
+    <div class="score" id="scoreRow" style="display:none">
+      <span class="n h" id="nHigh">0</span><span class="cap">高优先</span>
+      <span class="n m" id="nMid">0</span><span class="cap">中优先</span>
+      <span class="n l" id="nLow">0</span><span class="cap">低优先</span>
+    </div>
+    <div id="violist" style="margin-top:8px"></div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="scaleModal">
+  <div class="box">
+    <h3>标定比例</h3>
+    <p>你刚才在图上画了一条线。请输入它在现实中的长度（米），例如一段标注 3600 的墙就是 3.6。</p>
+    <input type="number" id="scaleInput" step="0.1" value="3.6" placeholder="实际长度（米）" />
+    <div class="row">
+      <button class="gbtn" id="scaleCancel">取消</button>
+      <button class="gbtn amber" id="scaleOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================================
+   ImmerseHome · 户型图识别
+   坐标系：图纸像素坐标（x 右，y 下）。导出时按比例换算成米，并翻转 y。
+   ========================================================================== */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const stage = document.getElementById("stage");
+
+const S = {
+  img: null,
+  view: { s: 1, tx: 0, ty: 0 },
+  tool: "pan",
+  walls: [],        // {a:[px,py], b:[px,py], kind:'wall'|'window'}
+  doors: [],        // {x, y, w, ang}  ang: 门所在方向角
+  furn: [],         // {type,name,cx,cy,len,wid,heading,height}
+  pxPerM: 0,
+  sel: null,
+  drag: null,
+  pending: null,    // 标定比例时临时线段
+  audit: null,
+  auditT: 0,
+};
+
+/* 家具库：cat 用于分组，房间类型由 type 反推（见 3d.html ROOM_OF） */
+const FURN_DEFS = [
+  // 卧室
+  { type: "bed", cat: "卧室", name: "双人床", len: 2.0, wid: 1.8, height: 0.5, icon: "🛏" },
+  { type: "bed", cat: "卧室", name: "单人床", len: 2.0, wid: 1.2, height: 0.5, icon: "🛌" },
+  { type: "wardrobe", cat: "卧室", name: "衣柜", len: 1.8, wid: 0.6, height: 2.2, icon: "🚪" },
+  { type: "nightstand", cat: "卧室", name: "床头柜", len: 0.45, wid: 0.4, height: 0.5, icon: "🗄" },
+  { type: "crib", cat: "卧室", name: "婴儿床", len: 1.3, wid: 0.7, height: 0.9, icon: "👶" },
+  // 客厅
+  { type: "sofa", cat: "客厅", name: "三人沙发", len: 0.9, wid: 2.2, height: 0.62, icon: "🛋" },
+  { type: "sofa", cat: "客厅", name: "单人沙发", len: 0.85, wid: 0.9, height: 0.62, icon: "💺" },
+  { type: "coffee", cat: "客厅", name: "茶几", len: 0.6, wid: 1.1, height: 0.42, icon: "🪑" },
+  { type: "tv", cat: "客厅", name: "电视柜", len: 0.45, wid: 1.8, height: 0.5, icon: "📺" },
+  { type: "cabinet", cat: "客厅", name: "玄关柜", len: 0.4, wid: 1.2, height: 0.95, icon: "🗄" },
+  { type: "screen", cat: "客厅", name: "屏风", len: 0.08, wid: 1.6, height: 1.8, icon: "🎋" },
+  // 餐厨
+  { type: "table", cat: "餐厨", name: "餐桌", len: 1.2, wid: 0.8, height: 0.74, icon: "🍽" },
+  { type: "stove", cat: "餐厨", name: "灶台", len: 0.9, wid: 0.6, height: 0.85, icon: "🔥" },
+  { type: "sink", cat: "餐厨", name: "水槽", len: 0.8, wid: 0.6, height: 0.85, icon: "🚰" },
+  { type: "fridge", cat: "餐厨", name: "冰箱", len: 0.7, wid: 0.7, height: 1.8, icon: "🧊" },
+  // 卫浴
+  { type: "toilet", cat: "卫浴", name: "马桶", len: 0.7, wid: 0.4, height: 0.75, icon: "🚽" },
+  { type: "basin", cat: "卫浴", name: "洗手台", len: 0.5, wid: 0.7, height: 0.85, icon: "🚰" },
+  { type: "bathtub", cat: "卫浴", name: "浴缸", len: 0.8, wid: 1.6, height: 0.55, icon: "🛁" },
+  // 书房
+  { type: "desk", cat: "书房", name: "书桌", len: 1.1, wid: 0.6, height: 0.74, icon: "🪑" },
+  { type: "bookshelf", cat: "书房", name: "书柜", len: 0.35, wid: 1.6, height: 2.0, icon: "📚" },
+  { type: "chair", cat: "书房", name: "座椅", len: 0.5, wid: 0.5, height: 0.9, icon: "💺" },
+  // 其他
+  { type: "mirror", cat: "其他", name: "穿衣镜", len: 0.6, wid: 0.05, height: 1.7, icon: "🪞" },
+  { type: "plant", cat: "其他", name: "绿植", len: 0.4, wid: 0.4, height: 0.9, icon: "🪴" },
+  { type: "washer", cat: "其他", name: "洗衣机", len: 0.6, wid: 0.6, height: 0.85, icon: "🧺" },
+  { type: "altar", cat: "其他", name: "神位/财位", len: 0.4, wid: 0.9, height: 1.2, icon: "🕯" },
+];
+const FURN_CATS = ["卧室", "客厅", "餐厨", "卫浴", "书房", "其他"];
+
+/* ---------------------------------------------------------------- 画布尺寸 */
+function fitCanvas() {
+  const dpr = Math.min(devicePixelRatio, 2);
+  const w = stage.clientWidth, h = stage.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+addEventListener("resize", fitCanvas);
+
+/* ---------------------------------------------------------------- 视图变换 */
+function toScreen(p) { return [p[0] * S.view.s + S.view.tx, p[1] * S.view.s + S.view.ty]; }
+function toImg(x, y) { return [(x - S.view.tx) / S.view.s, (y - S.view.ty) / S.view.s]; }
+
+function fitView() {
+  if (!S.img) return;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  const s = Math.min(w / S.img.width, h / S.img.height) * 0.9;
+  S.view.s = s;
+  S.view.tx = (w - S.img.width * s) / 2;
+  S.view.ty = (h - S.img.height * s) / 2;
+  draw();
+}
+
+/* ---------------------------------------------------------------- 绘制 */
+function draw() {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#1d1811"; ctx.fillRect(0, 0, w, h);
+
+  if (S.img) {
+    ctx.save();
+    ctx.imageSmoothingQuality = "high";
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(S.img, S.view.tx, S.view.ty, S.img.width * S.view.s, S.img.height * S.view.s);
+    ctx.restore();
+  }
+
+  // 墙体（门洞处断开）
+  S.walls.forEach((seg, i) => {
+    const ds = doorsOn(seg);
+    if (!ds.length) drawSeg(seg, i);
+    else splitWallByDoors(seg, ds).forEach(s => drawSeg(s, i));
+  });
+
+  // 门（画在洞口上）
+  S.doors.forEach(d => {
+    const [x, y] = toScreen([d.x, d.y]);
+    const r = (d.w / 2) * S.view.s;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(d.ang || 0);
+    const on = d === S.sel;
+    ctx.strokeStyle = on ? "#fff" : (d.wall ? "#7FD8B8" : "#8a8378");
+    ctx.lineWidth = on ? 3.2 : 2.4;
+    ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-r, 0, r, 0, Math.PI / 2); ctx.stroke();
+    // 洞口两端的门垛
+    ctx.beginPath();
+    ctx.moveTo(-r, -3.5); ctx.lineTo(-r, 3.5);
+    ctx.moveTo(r, -3.5); ctx.lineTo(r, 3.5);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // 家具
+  S.furn.forEach((f, i) => drawFurniture(f, i));
+
+  // 标定临时线
+  if (S.pending) {
+    const a = toScreen(S.pending.a), b = toScreen(S.pending.b);
+    ctx.save();
+    ctx.strokeStyle = "#E9A24C"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawSeg(seg, i) {
+  const a = toScreen(seg.a), b = toScreen(seg.b);
+  const isWin = seg.kind === "window";
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = isWin ? "rgba(140,205,235,.95)" : "rgba(233,162,76,.95)";
+  ctx.lineWidth = isWin ? 3 : 3.6;
+  if (seg.sel) { ctx.strokeStyle = "#fff"; ctx.lineWidth += 1.5; }
+  ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  // 端点
+  ctx.fillStyle = isWin ? "#8CCDEB" : "#E9A24C";
+  [[a], [b]].forEach(([p]) => {
+    ctx.beginPath(); ctx.arc(p[0], p[1], 3.2, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawFurniture(f, i) {
+  const c = toScreen([f.cx, f.cy]);
+  const s = S.view.s;
+  ctx.save();
+  ctx.translate(c[0], c[1]);
+  ctx.rotate(f.heading * Math.PI / 180);
+  if (f.flip) ctx.scale(-1, 1);
+  const L = f.len * S.pxPerM * s, W = f.wid * S.pxPerM * s;
+  ctx.fillStyle = f.sel ? "rgba(233,162,76,.42)" : "rgba(255,255,255,.20)";
+  ctx.strokeStyle = f.sel ? "#F7CB84" : "rgba(255,255,255,.62)";
+  ctx.lineWidth = f.sel ? 2 : 1.4;
+  roundRect(-W / 2, -L / 2, W, L, 4);
+  ctx.fill(); ctx.stroke();
+  // 朝向前缘标记（让人看得出哪边是"头"）
+  ctx.strokeStyle = f.sel ? "rgba(247,203,132,.95)" : "rgba(255,255,255,.4)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-W / 2 + 5, -L / 2 + 4); ctx.lineTo(W / 2 - 5, -L / 2 + 4); ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.92)";
+  ctx.font = "600 10px -apple-system, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  if (W > 34) ctx.fillText(f.name, 0, 0);
+  ctx.restore();
+  // 选中时：旋转手柄（顶端小圆点，拖着它自由转）
+  if (f.sel) {
+    const hp = rotHandlePos(f);
+    ctx.save();
+    ctx.strokeStyle = "rgba(247,203,132,.8)"; ctx.lineWidth = 1.3; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(hp[0], hp[1]); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#F7CB84";
+    ctx.beginPath(); ctx.arc(hp[0], hp[1], 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(90,60,20,.9)"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(hp[0], hp[1], 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+}
+/* 旋转手柄的屏幕坐标：家具"前缘"中点向外 26px */
+function rotHandlePos(f) {
+  const c = toScreen([f.cx, f.cy]);
+  const D = f.len * S.pxPerM * S.view.s / 2 + 26;
+  const a = f.heading * Math.PI / 180;
+  return [c[0] + D * Math.sin(a), c[1] - D * Math.cos(a)];
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ---------------------------------------------------------------- 图片载入 */
+function loadImage(file) {
+  if (!file || !file.type.startsWith("image/")) { toast("请选择图片文件"); return; }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    S.img = img;
+    deskewDone = false;
+    S.walls = []; S.doors = []; S.furn = []; S.pxPerM = 0; S.audit = null;
+    document.getElementById("empty").classList.add("off");
+    document.getElementById("imgInfo").textContent = `${file.name} · ${img.width}×${img.height}`;
+    document.getElementById("btnDetect").disabled = false;
+    document.getElementById("btnGo3D").disabled = false;
+    fitView(); refreshStats(); setStep(2);
+  };
+  img.onerror = () => toast("图片读取失败");
+  img.src = url;
+}
+
+/* ---------------------------------------------------------------- 自动识墙
+   1) 灰度 + Otsu 二值化（墙线为深色）
+   2) 用 Hough 变换找主方向直线
+   3) 沿直线回溯墙像素取得线段起止
+*/
+/* 手机拍的图纸基本都是歪的，而识墙只认轴向线，歪 5° 就会长出一批伪线。
+   先用梯度方向直方图估出整体倾斜，反向旋转扶正，再走原来的识墙流程。 */
+let deskewDone = false;
+
+function rotateImg(src, deg) {
+  const a = deg * Math.PI / 180;
+  const W = Math.ceil(src.width * Math.abs(Math.cos(a)) + src.height * Math.abs(Math.sin(a)));
+  const H = Math.ceil(src.width * Math.abs(Math.sin(a)) + src.height * Math.abs(Math.cos(a)));
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#f4efe6"; g.fillRect(0, 0, W, H);
+  g.translate(W / 2, H / 2); g.rotate(a);
+  g.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+
+function estimateSkew() {
+  const W = S.img.width, H = S.img.height;
+  const cv2 = document.createElement("canvas"); cv2.width = W; cv2.height = H;
+  const g2 = cv2.getContext("2d"); g2.drawImage(S.img, 0, 0);
+  const d = g2.getImageData(0, 0, W, H).data;
+  const gray = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    gray[i] = (d[i * 4] * 299 + d[i * 4 + 1] * 587 + d[i * 4 + 2] * 114) / 1000;
+  }
+  const hist = new Float64Array(180);
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const gx = gray[y * W + x + 1] - gray[y * W + x - 1];
+      const gy = gray[(y + 1) * W + x] - gray[(y - 1) * W + x];
+      const m = Math.hypot(gx, gy);
+      if (m < 18) continue;                     // 弱边不算，避免家具/文字干扰
+      let a = Math.atan2(gy, gx) * 180 / Math.PI;
+      a = ((a % 180) + 180) % 180;
+      hist[Math.round(a) % 180] += m;
+    }
+  }
+  // 横墙和竖墙的梯度差 90°，按 90° 展开后两者偏差一致，直接加权平均
+  let sum = 0, wsum = 0;
+  for (let a = 0; a < 180; a++) {
+    const w = hist[a]; if (w <= 0) continue;
+    const dd = ((a + 45) % 90) - 45;            // 到最近 90° 倍数的带符号偏差
+    sum += w; wsum += w * dd;
+  }
+  return sum > 0 ? wsum / sum : 0;
+}
+
+function detectWalls() {
+  if (!S.img) return;
+  if (!deskewDone) {
+    deskewDone = true;
+    const sk = estimateSkew();
+    if (isFinite(sk) && Math.abs(sk) > 0.7 && Math.abs(sk) < 15) {
+      S.img = rotateImg(S.img, -sk);
+      fitView();
+      toast(`图纸倾斜约 ${sk.toFixed(1)}°，已自动扶正`);
+    }
+  }
+  const MAX = 760;
+  const scale = Math.min(1, MAX / Math.max(S.img.width, S.img.height));
+  const W = Math.round(S.img.width * scale), H = Math.round(S.img.height * scale);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.drawImage(S.img, 0, 0, W, H);
+  const data = g.getImageData(0, 0, W, H).data;
+
+  const gray = new Float32Array(W * H);
+  let hist = new Array(256).fill(0);
+  for (let i = 0; i < W * H; i++) {
+    const v = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+    gray[i] = v; hist[v | 0]++;
+  }
+  // Otsu
+  let total = W * H, sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = 0, thr = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB, mF = (sum - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > best) { best = between; thr = i; }
+  }
+  const sens = +document.getElementById("sens").value / 100;
+  const useBin = document.getElementById("chkBinarize").checked;
+  const cut = useBin ? thr : thr * (0.5 + sens);
+  const mask = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) mask[i] = gray[i] < cut ? 1 : 0;
+
+  // 只保留"细长"的深色结构：用行/列连续长度过滤噪声
+  const cleaned = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    let run = 0;
+    for (let x = 0; x <= W; x++) {
+      const on = x < W && mask[y * W + x];
+      if (on) run++;
+      else { if (run >= 12) for (let k = x - run; k < x; k++) cleaned[y * W + k] = 1; run = 0; }
+    }
+  }
+  for (let x = 0; x < W; x++) {
+    let run = 0;
+    for (let y = 0; y <= H; y++) {
+      const on = y < H && mask[y * W + x];
+      if (on) run++;
+      else { if (run >= 12) for (let k = y - run; k < y; k++) cleaned[k * W + x] = 1; run = 0; }
+    }
+  }
+
+  // Hough
+  const angles = 180, diag = Math.ceil(Math.hypot(W, H));
+  const acc = new Int32Array(angles * (diag * 2 + 1));
+  const off = diag;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!cleaned[y * W + x]) continue;
+      for (let a = 0; a < angles; a++) {
+        // 只考虑接近水平/垂直的方向，平面图墙线基本轴向
+        if (a > 12 && a < 78) continue;
+        if (a > 102 && a < 168) continue;
+        const rad = a * Math.PI / 180;
+        const rho = Math.round(x * Math.cos(rad) + y * Math.sin(rad));
+        acc[a * (diag * 2 + 1) + rho + off]++;
+      }
+    }
+  }
+
+  // 取峰值
+  const peaks = [];
+  for (let a = 0; a < angles; a++) {
+    for (let r = 0; r < diag * 2 + 1; r++) {
+      const v = acc[a * (diag * 2 + 1) + r];
+      if (v < 26) continue;
+      peaks.push({ a, r: r - off, v });
+    }
+  }
+  peaks.sort((p, q) => q.v - p.v);
+
+  const picked = [];
+  for (const p of peaks) {
+    if (picked.length >= 46) break;
+    // 与已选线太近则跳过（同一条墙的相邻 rho）
+    const near = picked.some(q =>
+      Math.abs(q.a - p.a) <= 3 && Math.abs(q.r - p.r) <= 7);
+    if (!near) picked.push(p);
+  }
+
+  // 沿每条线取连续墙像素区间 → 线段
+  const segsImg = [];
+  const cos = [], sin = [];
+  for (let a = 0; a < 180; a++) { cos[a] = Math.cos(a * Math.PI / 180); sin[a] = Math.sin(a * Math.PI / 180); }
+
+  picked.forEach(p => {
+    const ca = cos[p.a], sa = sin[p.a];
+    // 线上点：参数 t 沿方向 (-sa, ca)
+    const px0 = p.r * ca, py0 = p.r * sa;
+    const dx = -sa, dy = ca;
+    const len = Math.hypot(W, H);
+    let runStart = null;
+    const runs = [];
+    for (let t = -len; t <= len; t += 1.5) {
+      const x = Math.round(px0 + dx * t), y = Math.round(py0 + dy * t);
+      let on = false;
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        // 允许 ±2px 抖动
+        for (let o = -2; o <= 2; o++) {
+          const xx = Math.round(x - dy * o), yy = Math.round(y + dx * o);
+          if (xx >= 0 && xx < W && yy >= 0 && yy < H && cleaned[yy * W + xx]) { on = true; break; }
+        }
+      }
+      if (on && runStart === null) runStart = t;
+      if (!on && runStart !== null) {
+        if (t - runStart > 26) runs.push([runStart, t]);
+        runStart = null;
+      }
+    }
+    if (runStart !== null && len - runStart > 26) runs.push([runStart, len]);
+    runs.forEach(([t0, t1]) => {
+      segsImg.push({
+        a: [(px0 + dx * t0) / scale, (py0 + dy * t0) / scale],
+        b: [(px0 + dx * t1) / scale, (py0 + dy * t1) / scale],
+        kind: "wall",
+      });
+    });
+  });
+
+  // 轴对齐吸附 + 去重
+  const snapped = segsImg.map(s => snapSeg(s)).filter(s =>
+    Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) > 12);
+  // 丢弃落在图像外的伪线
+  const inImg = s2 => {
+    const mx = (s2.a[0] + s2.b[0]) / 2, my = (s2.a[1] + s2.b[1]) / 2;
+    return mx > -4 && my > -4 && mx < S.img.width + 4 && my < S.img.height + 4;
+  };
+  const merged = [];
+  snapped.filter(inImg).forEach(s => {
+    const dup = merged.some(m =>
+      Math.hypot(m.a[0] - s.a[0], m.a[1] - s.a[1]) < 9 && Math.hypot(m.b[0] - s.b[0], m.b[1] - s.b[1]) < 9);
+    if (!dup) merged.push(s);
+  });
+
+  S.walls = mergeDupWalls(merged);
+  S.doors = [];
+  refreshStats(); draw(); setStep(3);
+  toast(`识别到 ${merged.length} 段墙线，可拖动端点修正`);
+}
+
+/* 同一堵墙会被检出两条平行边：按 方向+偏移 聚类，取中线并合并重叠区间 */
+function mergeDupWalls(segs) {
+  const groups = [];
+  segs.forEach(s => {
+    const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const ang = Math.round(Math.atan2(dy, dx) * 180 / Math.PI);
+    const a2 = ang < 0 ? ang + 180 : ang;
+    // 法向偏移
+    const nx = -dy / len, ny = dx / len;
+    const off = s.a[0] * nx + s.a[1] * ny;
+    let g = groups.find(q => Math.abs(q.ang - a2) < 6 && Math.abs(q.off - off) < 14);
+    if (!g) { g = { ang: a2, off, segs: [] }; groups.push(g); }
+    g.segs.push(s);
+    g.off = (g.off * (g.segs.length - 1) + off) / g.segs.length;
+  });
+
+  const out = [];
+  groups.forEach(g => {
+    const rad = g.ang * Math.PI / 180;
+    const ux = Math.cos(rad), uy = Math.sin(rad);
+    const nx = -uy, ny = ux;
+    // 投影到方向轴，取并集
+    const spans = g.segs.map(s => {
+      const t1 = s.a[0] * ux + s.a[1] * uy;
+      const t2 = s.b[0] * ux + s.b[1] * uy;
+      return [Math.min(t1, t2), Math.max(t1, t2)];
+    }).sort((p, q) => p[0] - q[0]);
+    const merged = [];
+    spans.forEach(sp => {
+      const last = merged[merged.length - 1];
+      if (last && sp[0] <= last[1] + 16) last[1] = Math.max(last[1], sp[1]);
+      else merged.push([sp[0], sp[1]]);
+    });
+    merged.forEach(([t0, t1]) => {
+      if (t1 - t0 < 22) return;
+      const seg = clipToImage({
+        a: [ux * t0 + nx * g.off, uy * t0 + ny * g.off],
+        b: [ux * t1 + nx * g.off, uy * t1 + ny * g.off],
+        kind: "wall",
+      });
+      if (seg) out.push(seg);
+    });
+  });
+  return out;
+}
+
+/* Liang–Barsky：把线段裁到图纸范围内，去掉跑出图纸的伪线 */
+function clipToImage(seg) {
+  if (!S.img) return seg;
+  const xmin = 1, ymin = 1, xmax = S.img.width - 1, ymax = S.img.height - 1;
+  let t0 = 0, t1 = 1;
+  const dx = seg.b[0] - seg.a[0], dy = seg.b[1] - seg.a[1];
+  const p = [-dx, dx, -dy, dy];
+  const q = [seg.a[0] - xmin, xmax - seg.a[0], seg.a[1] - ymin, ymax - seg.a[1]];
+  for (let i = 0; i < 4; i++) {
+    if (Math.abs(p[i]) < 1e-9) { if (q[i] < 0) return null; continue; }
+    const r = q[i] / p[i];
+    if (p[i] < 0) { if (r > t1) return null; if (r > t0) t0 = r; }
+    else { if (r < t0) return null; if (r < t1) t1 = r; }
+  }
+  if (t1 - t0 < 0.35) return null;
+  const A = [seg.a[0] + dx * t0, seg.a[1] + dy * t0];
+  const B = [seg.a[0] + dx * t1, seg.a[1] + dy * t1];
+  if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 22) return null;
+  return { a: A, b: B, kind: seg.kind };
+}
+
+function snapSeg(s) {
+  const dx = Math.abs(s.b[0] - s.a[0]), dy = Math.abs(s.b[1] - s.a[1]);
+  if (dx > dy * 6) {
+    const y = Math.round((s.a[1] + s.b[1]) / 2);
+    return { a: [s.a[0], y], b: [s.b[0], y], kind: s.kind };
+  }
+  if (dy > dx * 6) {
+    const x = Math.round((s.a[0] + s.b[0]) / 2);
+    return { a: [x, s.a[1]], b: [x, s.b[1]], kind: s.kind };
+  }
+  return s;
+}
+
+/* ---------------------------------------------------------------- 交互 */
+let panning = false, panStart = null;
+cv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const ip = toImg(mx, my);
+
+  if (S.tool === "pan" || e.button === 1) {
+    // 先看是否点到家具 / 墙端点
+    const hit = hitTest(mx, my);
+    if (hit) { selectOnly(hit.ref); S.drag = hit; draw(); renderProps(); return; }
+    if (S.sel) { selectOnly(null); renderProps(); }
+    panning = true; panStart = { x: mx, y: my, tx: S.view.tx, ty: S.view.ty };
+    stage.classList.add("dragging");
+    return;
+  }
+  if (S.tool === "scale") {
+    if (!S.pending) { S.pending = { a: ip, b: ip }; }
+    else { S.pending.b = ip; openScaleModal(); }
+    draw(); return;
+  }
+  if (S.tool === "wall") {
+    if (!S.draft) { S.draft = { a: ip, b: ip }; }
+    else {
+      S.walls.push(snapSeg({ a: S.draft.a, b: ip, kind: "wall" }));
+      S.draft = null; refreshStats(); scheduleAudit();
+    }
+    draw(); return;
+  }
+  if (S.tool === "door") {
+    const h = nearestWall(ip, 30);
+    if (!h) { toast("请把门点在墙线上（在墙上开洞）"); return; }
+    const wpx = 0.9 * (S.pxPerM || 60);
+    S.doors.push({ x: h.x, y: h.y, w: wpx, ang: h.ang, wall: h.seg, t: h.t });
+    S.sel = S.doors[S.doors.length - 1];
+    refreshStats(); scheduleAudit(); draw(); renderProps(); return;
+  }
+  if (S.tool === "window") {
+    const h = nearestWall(ip, 30);
+    if (!h) { toast("请点在墙线上标窗"); return; }
+    h.seg.kind = h.seg.kind === "window" ? "wall" : "window";
+    refreshStats(); scheduleAudit(); draw(); return;
+  }
+  if (S.tool === "erase") {
+    const hit = hitTest(mx, my, true);
+    if (hit && hit.kind === "wall") {
+      // 拆墙：连带把墙上的门一起去掉
+      S.walls = S.walls.filter(w => w !== hit.ref);
+      S.doors = S.doors.filter(d => d.wall !== hit.ref);
+      S.sel = null;
+    } else if (hit && hit.kind === "furn") { S.furn = S.furn.filter(f => f !== hit.ref); S.sel = null; }
+    else if (hit && hit.kind === "door") { S.doors = S.doors.filter(d => d !== hit.ref); S.sel = null; }
+    else {
+      // 删最近的门
+      let bi = -1, bd = 1e9;
+      S.doors.forEach((d, i) => {
+        const [sx, sy] = toScreen([d.x, d.y]);
+        const dd = Math.hypot(sx - mx, sy - my);
+        if (dd < bd) { bd = dd; bi = i; }
+      });
+      if (bd < 20) S.doors.splice(bi, 1);
+    }
+    refreshStats(); scheduleAudit(); draw(); return;
+  }
+});
+
+cv.addEventListener("pointermove", e => {
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const ip = toImg(mx, my);
+
+  if (panning && panStart) {
+    S.view.tx = panStart.tx + (mx - panStart.x);
+    S.view.ty = panStart.ty + (my - panStart.y);
+    draw(); return;
+  }
+  if (S.drag) {
+    if (S.drag.kind === "end") {
+      S.drag.ref[S.drag.which] = ip;
+    } else if (S.drag.kind === "rot") {
+      // 拖手柄自由旋转：手柄方向跟手，默认 15° 吸附，按住 Alt 自由微调
+      const f = S.drag.ref;
+      const c = toScreen([f.cx, f.cy]);
+      let h = Math.atan2(mx - c[0], -(my - c[1])) * 180 / Math.PI;
+      h = (h + 360) % 360;
+      if (!e.altKey) h = Math.round(h / 15) * 15 % 360;
+      f.heading = Math.round(h * 10) / 10;
+      renderProps();
+    } else if (S.drag.kind === "furn") {
+      S.drag.ref.cx = ip[0] - S.drag.off[0];
+      S.drag.ref.cy = ip[1] - S.drag.off[1];
+    } else if (S.drag.kind === "door") {
+      // 门只能沿墙滑动 —— 拖到另一面墙上就是"换个地方开门"
+      const d = S.drag.ref;
+      const h = nearestWall(ip, 52);
+      if (h) { d.x = h.x; d.y = h.y; d.ang = h.ang; d.wall = h.seg; d.t = h.t; }
+      else { d.x = ip[0]; d.y = ip[1]; d.wall = null; }
+    }
+    draw(); return;
+  }
+  if (S.draft) { S.draft.b = ip; draw(); }
+  if (S.pending) { S.pending.b = ip; draw(); }
+});
+
+addEventListener("pointerup", () => {
+  if (panning) { panning = false; stage.classList.remove("dragging"); }
+  if (S.drag) {
+    const k = S.drag.kind;
+    S.drag = null;
+    if (k === "furn" || k === "door" || k === "end" || k === "rot") {
+      refreshStats(); scheduleAudit(); renderProps();
+    }
+  }
+});
+
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const before = toImg(mx, my);
+  const k = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  S.view.s = Math.max(0.08, Math.min(8, S.view.s * k));
+  const after = toImg(mx, my);
+  S.view.tx += (after[0] - before[0]) * S.view.s;
+  S.view.ty += (after[1] - before[1]) * S.view.s;
+  draw();
+}, { passive: false });
+
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  const fSel = S.furn.find(x => x === S.sel);
+  if (fSel && (e.key === "r" || e.key === "R")) {
+    fSel.heading = (fSel.heading + 90) % 360; draw(); scheduleAudit(); renderProps(true);
+  }
+  if (fSel && (e.key === "q" || e.key === "Q")) {
+    fSel.heading = ((fSel.heading - 15) % 360 + 360) % 360; draw(); scheduleAudit(); renderProps(true);
+  }
+  if (fSel && (e.key === "e" || e.key === "E")) {
+    fSel.heading = (fSel.heading + 15) % 360; draw(); scheduleAudit(); renderProps(true);
+  }
+  if (fSel && (e.key === "f" || e.key === "F")) {
+    fSel.flip = !fSel.flip; draw(); renderProps(true);
+  }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    if (S.furn.indexOf(S.sel) >= 0) {
+      S.furn = S.furn.filter(x => x !== S.sel); S.sel = null;
+    } else if (S.doors.indexOf(S.sel) >= 0) {
+      S.doors = S.doors.filter(x => x !== S.sel); S.sel = null;   // 封门
+    }
+    if (S.sel === null) { draw(); refreshStats(); scheduleAudit(); renderProps(true); }
+  }
+  if (e.key === "Escape") { S.draft = null; S.pending = null; draw(); }
+});
+
+function hitTest(mx, my, all) {
+  // 选中家具的旋转手柄（最优先）
+  if (S.sel && S.furn.indexOf(S.sel) >= 0) {
+    const hp = rotHandlePos(S.sel);
+    if (Math.hypot(hp[0] - mx, hp[1] - my) < 11) return { kind: "rot", ref: S.sel };
+  }
+  // 墙端点
+  for (const w of S.walls) {
+    for (const which of ["a", "b"]) {
+      const [sx, sy] = toScreen(w[which]);
+      if (Math.hypot(sx - mx, sy - my) < 9) return { kind: "end", ref: w, which };
+    }
+  }
+  // 家具
+  for (let i = S.furn.length - 1; i >= 0; i--) {
+    const f = S.furn[i];
+    const [cx, cy] = toScreen([f.cx, f.cy]);
+    const rad = -f.heading * Math.PI / 180;
+    const dx = mx - cx, dy = my - cy;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    const W = f.wid * S.pxPerM * S.view.s / 2, L = f.len * S.pxPerM * S.view.s / 2;
+    if (Math.abs(lx) < W && Math.abs(ly) < L) return { kind: "furn", ref: f, off: [0, 0] };
+  }
+  // 门（优先于墙：点在门上是要挪门/删门，不是拆墙）
+  for (const d of S.doors) {
+    const [sx, sy] = toScreen([d.x, d.y]);
+    if (Math.hypot(sx - mx, sy - my) < 12) return { kind: "door", ref: d, off: [0, 0] };
+  }
+  if (all) {
+    for (const w of S.walls) {
+      const [ax, ay] = toScreen(w.a), [bx, by] = toScreen(w.b);
+      if (distToSeg(mx, my, ax, ay, bx, by) < 7) return { kind: "wall", ref: w };
+    }
+  }
+  return null;
+}
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const L2 = dx * dx + dy * dy || 1;
+  let t = ((px - x1) * dx + (py - y1) * dy) / L2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+/* 返回点最近的墙 + 落在该墙上的参数 t（0..1），用于在墙上开门洞 */
+function nearestWall(ip, maxD) {
+  let best = null, bd = 1e9;
+  S.walls.forEach(w => {
+    const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
+    const L2 = dx * dx + dy * dy || 1;
+    let t = ((ip[0] - w.a[0]) * dx + (ip[1] - w.a[1]) * dy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const px = w.a[0] + t * dx, py = w.a[1] + t * dy;
+    const d = Math.hypot(ip[0] - px, ip[1] - py);
+    if (d < bd) {
+      bd = d;
+      best = { seg: w, t, x: px, y: py, dist: d, ang: Math.atan2(dy, dx) };
+    }
+  });
+  return bd < (maxD || 26) ? best : null;
+}
+
+/* 一堵墙被若干门洞切成多段（门洞处不画墙、不建墙） */
+function splitWallByDoors(w, ds) {
+  const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
+  const L = Math.hypot(dx, dy) || 1;
+  const cuts = ds.map(d => {
+    const half = (d.w / 2) / L;
+    return [Math.max(0, d.t - half), Math.min(1, d.t + half)];
+  }).sort((p, q) => p[0] - q[0]);
+  const out = [];
+  let cur = 0;
+  cuts.forEach(([c0, c1]) => {
+    if (c0 > cur + 0.004) {
+      out.push({
+        a: [w.a[0] + dx * cur, w.a[1] + dy * cur],
+        b: [w.a[0] + dx * c0, w.a[1] + dy * c0], kind: w.kind,
+      });
+    }
+    cur = Math.max(cur, c1);
+  });
+  if (cur < 0.996) {
+    out.push({
+      a: [w.a[0] + dx * cur, w.a[1] + dy * cur],
+      b: [w.b[0], w.b[1]], kind: w.kind,
+    });
+  }
+  return out.filter(s => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) > 3);
+}
+function doorsOn(w) { return S.doors.filter(d => d.wall === w); }
+
+/* ---------------------------------------------------------------- 工具切换 */
+document.querySelectorAll(".tbtn[data-tool]").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tbtn[data-tool]").forEach(x => x.classList.toggle("on", x === b));
+    S.tool = b.dataset.tool;
+    S.draft = null; S.pending = null; draw();
+  });
+});
+
+/* ---------------------------------------------------------------- 家具面板 */
+const pal = document.getElementById("palette");
+pal.innerHTML = FURN_CATS.map(cat => {
+  const items = FURN_DEFS.map((d, i) => ({ d, i })).filter(o => o.d.cat === cat);
+  if (!items.length) return "";
+  return `<div class="pal-cat">${cat}</div><div class="pal-row">` +
+    items.map(o => `<button draggable="true" data-i="${o.i}"><em>${o.d.icon}</em>${o.d.name}</button>`).join("") +
+    `</div>`;
+}).join("");
+pal.querySelectorAll("button").forEach(b => {
+  const def = FURN_DEFS[+b.dataset.i];
+  b.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", String(+b.dataset.i));
+  });
+  b.addEventListener("dblclick", () => placeFurniture(def, null));
+});
+stage.addEventListener("dragover", e => e.preventDefault());
+stage.addEventListener("drop", e => {
+  e.preventDefault();
+  if (e.dataTransfer.files && e.dataTransfer.files.length) { loadImage(e.dataTransfer.files[0]); return; }
+  const i = e.dataTransfer.getData("text/plain");
+  if (i === "") return;
+  const r = cv.getBoundingClientRect();
+  placeFurniture(FURN_DEFS[+i], toImg(e.clientX - r.left, e.clientY - r.top));
+});
+function placeFurniture(def, ip) {
+  if (!S.pxPerM) { toast("请先用「标定比例」画一条线"); return; }
+  const p = ip || [S.img.width / 2, S.img.height / 2];
+  const f = {
+    type: def.type, name: def.name,
+    cx: p[0], cy: p[1],
+    len: def.len, wid: def.wid, height: def.height,
+    heading: 0, sel: true,
+  };
+  S.furn.forEach(x => x.sel = false);
+  S.furn.push(f);
+  S.sel = f;                       // 放完就选中，右侧可直接改尺寸
+  refreshStats(); draw(); scheduleAudit(); renderProps(true);
+  setStep(4);
+}
+
+/* ---------------------------------------------------------------- 比例标定 */
+function openScaleModal() {
+  document.getElementById("scaleModal").classList.add("show");
+  document.getElementById("scaleInput").focus();
+}
+document.getElementById("scaleCancel").onclick = () => {
+  document.getElementById("scaleModal").classList.remove("show");
+  S.pending = null; draw();
+};
+document.getElementById("scaleOk").onclick = () => {
+  const m = parseFloat(document.getElementById("scaleInput").value);
+  if (!(m > 0)) { toast("请输入大于 0 的长度"); return; }
+  const px = Math.hypot(S.pending.b[0] - S.pending.a[0], S.pending.b[1] - S.pending.a[1]);
+  S.pxPerM = px / m;
+  document.getElementById("scaleModal").classList.remove("show");
+  S.pending = null;
+  document.getElementById("kScale").textContent = `${S.pxPerM.toFixed(1)} px / m`;
+  toast(`比例已标定：1 米 = ${S.pxPerM.toFixed(1)} 像素`);
+  draw(); refreshStats();
+};
+addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.getElementById("scaleModal").classList.contains("show")) {
+    document.getElementById("scaleOk").click();
+  }
+});
+
+/* ---------------------------------------------------------------- 统计 */
+/* 统一选中状态：S.sel（属性面板）+ f.sel / seg.sel（画布高亮）保持同步 */
+function selectOnly(ref) {
+  S.sel = ref || null;
+  S.furn.forEach(x => { x.sel = (x === ref); });
+  S.walls.forEach(x => { x.sel = (x === ref); });
+}
+
+/* ------------------------------------------------ 选中项属性（改尺寸/改门宽） */
+let lastSel;
+function renderProps(force) {
+  const box = document.getElementById("propBox");
+  const body = document.getElementById("propBody");
+  const sel = S.sel;
+  if (!force && sel === lastSel) return;      // 拖动中不要重建 DOM
+  lastSel = sel;
+  if (!sel) { box.style.display = "none"; return; }
+
+  const isFurn = S.furn.indexOf(sel) >= 0;
+  const isDoor = S.doors.indexOf(sel) >= 0;
+  if (!isFurn && !isDoor) { box.style.display = "none"; return; }
+  box.style.display = "";
+
+  if (isFurn) {
+    body.innerHTML = `
+      <div class="prop-name">${sel.name}${sel.flip ? " · 已翻转" : ""}</div>
+      <label>长 <input type="number" id="pLen" step="0.1" min="0.2" value="${sel.len}"> m</label>
+      <label>宽 <input type="number" id="pWid" step="0.1" min="0.2" value="${sel.wid}"> m</label>
+      <label>朝向 <input type="number" id="pRot" step="15" value="${Math.round(sel.heading)}"> °</label>
+      <div style="display:flex;gap:6px">
+        <button class="tbtn" id="pRotL" style="flex:1"><em>⟲</em>左 15°</button>
+        <button class="tbtn" id="pRotR" style="flex:1"><em>⟳</em>右 15°</button>
+      </div>
+      <button class="tbtn" id="pFlip"><em>⇋</em>左右翻转</button>
+      <div class="hint">也可以直接拖家具顶端的圆柄自由转（按住 Alt 取消 15° 吸附）。</div>
+      <button class="tbtn" id="pDel"><em>✕</em>删除这件家具</button>`;
+    ["pLen:len", "pWid:wid", "pRot:heading"].forEach(spec => {
+      const [id, key] = spec.split(":");
+      const el = document.getElementById(id);
+      el.addEventListener("input", () => {
+        const v = parseFloat(el.value);
+        if (!isFinite(v)) return;
+        if (key !== "heading" && v <= 0) return;
+        sel[key] = key === "heading" ? ((v % 360) + 360) % 360 : v;
+        draw(); scheduleAudit();
+      });
+    });
+    document.getElementById("pRotL").onclick = () => {
+      sel.heading = ((sel.heading - 15) % 360 + 360) % 360; draw(); scheduleAudit(); renderProps(true);
+    };
+    document.getElementById("pRotR").onclick = () => {
+      sel.heading = (sel.heading + 15) % 360; draw(); scheduleAudit(); renderProps(true);
+    };
+    document.getElementById("pFlip").onclick = () => {
+      sel.flip = !sel.flip; draw(); renderProps(true);
+    };
+    document.getElementById("pDel").onclick = () => {
+      S.furn = S.furn.filter(f => f !== sel);
+      S.sel = null; refreshStats(); scheduleAudit(); draw(); renderProps(true);
+    };
+  } else {
+    const ppm = S.pxPerM || 60;
+    const lab = doorLabel(sel);
+    body.innerHTML = `
+      <div class="prop-name">${sel.entry ? "入户门" : (lab || "门洞")}
+        <span style="font-weight:400;color:var(--t3)">${sel.wall ? "开在墙上" : "未吸附到墙"}</span></div>
+      <label>门宽 <input type="number" id="pDW" step="0.1" min="0.5" value="${(sel.w / ppm).toFixed(2)}"> m</label>
+      <div class="hint">直接拖动门可沿墙挪位置，拖到另一面墙上就是「换个地方开门」。</div>
+      <button class="tbtn ${sel.entry ? "on" : ""}" id="pDEntry"><em>★</em>${sel.entry ? "已是入户门" : "设为入户门"}</button>
+      <button class="tbtn" id="pDFlip"><em>⇄</em>翻转开门朝向</button>
+      <button class="tbtn" id="pDDel"><em>✕</em>封掉这个门（墙补回）</button>`;
+    document.getElementById("pDEntry").onclick = () => {
+      const on = !sel.entry;
+      S.doors.forEach(d => { d.entry = false; });
+      sel.entry = on;
+      draw(); scheduleAudit(); renderProps(true);
+    };
+    const el = document.getElementById("pDW");
+    el.addEventListener("input", () => {
+      const v = parseFloat(el.value);
+      if (!isFinite(v) || v < 0.4) return;
+      sel.w = v * ppm; draw(); scheduleAudit();
+    });
+    document.getElementById("pDDel").onclick = () => {
+      S.doors = S.doors.filter(d => d !== sel);
+      S.sel = null; refreshStats(); scheduleAudit(); draw(); renderProps(true);
+    };
+  }
+}
+
+function refreshStats() {
+  document.getElementById("kWall").textContent = S.walls.length;
+  document.getElementById("kDoor").textContent = `${S.doors.length} / ${S.walls.filter(w => w.kind === "window").length}`;
+  document.getElementById("kFurn").textContent = S.furn.length;
+  const ready = S.img && S.pxPerM && S.walls.length;
+  document.getElementById("btnGo3D").disabled = !ready;
+}
+function setStep(n) {
+  const els = document.querySelectorAll("#stepsTop span:not(.sep)");
+  els.forEach((el, i) => el.classList.toggle("done", i < n - 1));
+}
+
+/* 门属于哪个房间：看离它最近的家具是什么。
+   引擎靠门名里的「卫」判定卫生间门，所以名字必须写实，不然规则永远不触发。 */
+const DOOR_ROOM = [
+  [new Set(["toilet", "basin", "bathtub"]), "卫生间门"],
+  [new Set(["stove", "sink", "fridge"]), "厨房门"],
+  [new Set(["bed", "crib", "wardrobe", "nightstand"]), "卧室门"],
+  [new Set(["desk", "bookshelf", "chair"]), "书房门"],
+  [new Set(["sofa", "tv", "coffee", "cabinet", "screen"]), "客厅门"],
+  [new Set(["table"]), "餐厅门"],
+  [new Set(["washer"]), "阳台门"],
+];
+function doorLabel(d) {
+  const ppm = S.pxPerM || 60;
+  let best = null, bd = 1e9;
+  S.furn.forEach(f => {
+    const dist = Math.hypot(f.cx - d.x, f.cy - d.y) / ppm;
+    if (dist < bd) { bd = dist; best = f; }
+  });
+  if (!best || bd > 3.2) return null;
+  for (const [set, name] of DOOR_ROOM) if (set.has(best.type)) return name;
+  return null;
+}
+
+/* ---------------------------------------------------------------- 导出场景 */
+function buildScene() {
+  // 像素 → 米；y 轴翻转（图纸向下 = 南）
+  const all = [];
+  S.walls.forEach(w => { all.push(w.a, w.b); });
+  S.furn.forEach(f => { all.push([f.cx - f.len * S.pxPerM, f.cy - f.wid * S.pxPerM], [f.cx + f.len * S.pxPerM, f.cy + f.wid * S.pxPerM]); });
+  if (!all.length) return null;
+  const minX = Math.min(...all.map(p => p[0])), maxX = Math.max(...all.map(p => p[0]));
+  const maxY = Math.max(...all.map(p => p[1]));
+  // x 取反：让 3D 俯视（北朝上）与图纸左右一致
+  const M = p => [
+    +( (maxX - p[0]) / S.pxPerM ).toFixed(3),
+    +( (maxY - p[1]) / S.pxPerM ).toFixed(3),
+  ];
+
+  // 墙：门洞处真的断开（凿壁/改门的结果会进到 3D 模型里）
+  const wParts = [];
+  S.walls.forEach(w => {
+    const ds = doorsOn(w);
+    (ds.length ? splitWallByDoors(w, ds) : [w]).forEach(p => wParts.push(p));
+  });
+  const walls = wParts.map((w, i) => ({
+    id: (w.kind === "window" ? "WIN-W-" : "W-") + i,
+    a: M(w.a), b: M(w.b),
+    is_window: w.kind === "window",
+  }));
+
+  // 户型中心（图纸像素系）：门的法向默认朝中心开，也就是朝室内
+  const allPts = [];
+  S.walls.forEach(w => { allPts.push(w.a, w.b); });
+  const cen = allPts.length
+    ? [allPts.reduce((s, p) => s + p[0], 0) / allPts.length,
+       allPts.reduce((s, p) => s + p[1], 0) / allPts.length]
+    : [0, 0];
+
+  const doors = S.doors.map((d, i) => {
+    const c = M([d.x, d.y]);
+    let nx = 0, ny = 1;
+    if (d.wall) {
+      const w = d.wall, dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
+      const L = Math.hypot(dx, dy) || 1;
+      nx = -dy / L; ny = dx / L;                 // 门所在墙的法向
+      if ((cen[0] - d.x) * nx + (cen[1] - d.y) * ny < 0) { nx = -nx; ny = -ny; }
+    } else if (d.ang != null) {
+      nx = -Math.sin(d.ang); ny = Math.cos(d.ang);
+    }
+    if (d.flip) { nx = -nx; ny = -ny; }
+    // 图纸 → 3D 是双向镜像（x、y 都取反），法向要跟着翻
+    const NX = -nx, NY = -ny;
+    const label = doorLabel(d);
+    return {
+      id: "D-" + i,
+      name: d.entry ? "入户门" : (label || "门" + (i + 1)),
+      center: c, width: +(d.w / S.pxPerM).toFixed(2),
+      normal: [+Math.abs(nx).toFixed(2), +Math.abs(ny).toFixed(2)],
+      in_wall: d.wall ? 1 : 0,
+      // 没显式指定入户门时，第一扇门当入户门
+      is_entry: !!d.entry || (!S.doors.some(x => x.entry) && i === 0),
+    };
+  });
+
+  const furniture = S.furn.map((f, i) => ({
+    id: "F-" + i, name: f.name, type: f.type,
+    rect: {
+      cx: +((maxX - f.cx) / S.pxPerM).toFixed(3),
+      cy: +((maxY - f.cy) / S.pxPerM).toFixed(3),
+      len: +f.len.toFixed(2), wid: +f.wid.toFixed(2),
+      heading: Math.round(((180 - f.heading) % 360 + 360) % 360),
+    },
+    height: f.height,
+  }));
+
+  return {
+    meta: {
+      name: "自定义户型", unit: "m",
+      origin: "southwest",
+      note: "由户型图识别生成",
+      custom: true,
+    },
+    walls: walls.filter(w => Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]) > 0.05),
+    doors, beams: [], furniture,
+    rooms: [],
+  };
+}
+
+/* ---------------------------------------------------------------- 实时审查 */
+function scheduleAudit() {
+  clearTimeout(S.auditT);
+  S.auditT = setTimeout(runAudit, 420);
+}
+async function runAudit() {
+  const scene = buildScene();
+  if (!scene || !scene.walls.length || !scene.furniture.length) {
+    document.getElementById("auditSub").textContent = "至少画一段墙并放一件家具，才能体检";
+    return;
+  }
+  try {
+    const r = await fetch("/api/audit", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(scene),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const res = await r.json();
+    S.audit = res;
+    renderAudit(res);
+  } catch (e) {
+    document.getElementById("auditSub").textContent = "诊断服务未连接";
+  }
+}
+
+function renderAudit(res) {
+  const s = res.summary;
+  document.getElementById("scoreRow").style.display = "flex";
+  document.getElementById("nHigh").textContent = s.by_severity.high || 0;
+  document.getElementById("nMid").textContent = s.by_severity.medium || 0;
+  document.getElementById("nLow").textContent = s.by_severity.low || 0;
+  document.getElementById("auditSub").textContent =
+    `${res.rule_count} 条规则 · ${s.passed} 条通过 · ${s.violations} 项问题`;
+
+  const list = document.getElementById("violist");
+  if (!res.violations.length) {
+    list.innerHTML = `<div class="empty-say">✦ 当前布局没有触发规则，空间关系良好。</div>`;
+  } else {
+    list.innerHTML = res.violations.map(v => {
+      const col = { high: "#E0704D", medium: "#E9A24C", low: "#93AB96" }[v.severity];
+      return `<div class="vitem"><span class="dot" style="background:${col}"></span>
+        <span><b>${v.name}</b>${(v.object_labels || []).join("、")}
+        <span class="sg">↳ ${v.suggestion}</span></span></div>`;
+    }).join("");
+  }
+}
+
+/* ---------------------------------------------------------------- 顶栏按钮 */
+document.getElementById("btnUpload").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("dropzone").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = e => { if (e.target.files[0]) loadImage(e.target.files[0]); };
+document.getElementById("btnDetect").onclick = detectWalls;
+document.getElementById("zIn").onclick = () => { S.view.s *= 1.18; draw(); };
+document.getElementById("zOut").onclick = () => { S.view.s /= 1.18; draw(); };
+document.getElementById("zFit").onclick = fitView;
+document.getElementById("btnGo3D").onclick = () => {
+  const scene = buildScene();
+  if (!scene) { toast("先完成墙体与家具"); return; }
+  localStorage.setItem("immersehome.scene", JSON.stringify(scene));
+  location.href = "/3d?scene=local";
+};
+
+/* 示例图纸：没有现成图纸时也能走完整流程 */
+document.getElementById("btnDemo").onclick = () => {
+  const PX = 60, M = 42;
+  const W = Math.round(8.4 * PX + M * 2), H = Math.round(9.6 * PX + M * 2);
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fdfbf6"; g.fillRect(0, 0, W, H);
+  const X = x => M + x * PX, Y = z => M + (9.6 - z) * PX;
+
+  g.strokeStyle = "#1b1b1b";
+  g.lineCap = "square";
+  const wall = (x1, z1, x2, z2, w) => {
+    g.lineWidth = w || 9;
+    g.beginPath(); g.moveTo(X(x1), Y(z1)); g.lineTo(X(x2), Y(z2)); g.stroke();
+  };
+  // 外墙
+  wall(0, 0, 8.4, 0); wall(8.4, 0, 8.4, 9.6);
+  wall(8.4, 9.6, 0, 9.6); wall(0, 9.6, 0, 0);
+  // 内墙
+  wall(0, 6.0, 3.6, 6.0); wall(3.6, 6.0, 3.6, 9.6);
+  wall(3.2, 2.6, 3.2, 4.4); wall(3.2, 4.4, 5.2, 4.4); wall(5.2, 2.6, 5.2, 4.4);
+  wall(5.2, 0, 5.2, 3.4); wall(5.2, 3.4, 8.4, 3.4);
+  wall(5.2, 4.4, 8.4, 4.4);
+
+  // 窗（双细线）
+  g.strokeStyle = "#2f6f96"; g.lineWidth = 3.5;
+  const win = (x1, z1, x2, z2) => {
+    g.beginPath(); g.moveTo(X(x1), Y(z1)); g.lineTo(X(x2), Y(z2)); g.stroke();
+  };
+  win(0.8, 0, 2.8, 0); win(1.0, 9.6, 3.0, 9.6); win(8.4, 7.0, 8.4, 9.0);
+
+  // 门弧
+  g.strokeStyle = "#555"; g.lineWidth = 1.6; g.setLineDash([4, 3]);
+  const door = (x, z, ang, w) => {
+    g.beginPath(); g.arc(X(x), Y(z), (w || 0.9) * PX, ang, ang + Math.PI / 2); g.stroke();
+  };
+  door(4.2, 0, -Math.PI / 2); door(4.2, 2.6, Math.PI / 2);
+  door(2.0, 6.0, Math.PI / 2); door(5.2, 1.8, -Math.PI / 2); door(7.0, 4.4, -Math.PI / 2);
+  g.setLineDash([]);
+
+  // 房间名
+  g.fillStyle = "#8a8378";
+  g.font = "600 15px 'Microsoft YaHei', sans-serif";
+  g.textAlign = "center";
+  const label = (t, x, z) => g.fillText(t, X(x), Y(z));
+  label("客厅", 1.6, 3.4); label("主卧", 1.8, 8.0); label("次卧", 6.8, 7.0);
+  label("厨房", 6.8, 1.6); label("卫生间", 4.2, 3.6);
+
+  S.img = c;
+  deskewDone = false;
+  S.walls = []; S.doors = []; S.furn = []; S.pxPerM = 0; S.audit = null;
+  document.getElementById("empty").classList.add("off");
+  document.getElementById("imgInfo").textContent = `示例图纸 · ${W}×${H}`;
+  document.getElementById("btnDetect").disabled = false;
+  document.getElementById("btnGo3D").disabled = false;
+  fitView(); refreshStats(); setStep(1);
+  toast("已载入示例图纸，点右上「自动识墙」");
+};
+
+/* 粘贴图片 */
+addEventListener("paste", e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+  if (item) loadImage(item.getAsFile());
+});
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+window.__plan = S;
+window.__audit = runAudit;
+window.__scene = buildScene;
+fitCanvas();
+</script>
+</body>
+</html>

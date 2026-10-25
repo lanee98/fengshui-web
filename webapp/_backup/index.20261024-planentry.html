@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ImmerseHome · 风水空间诊断</title>
+<style>
+  :root {
+    /* 暖色阳光系 */
+    --bg-cream: #faf5ea;
+    --bg-sun: #ffe9c4;
+    --glass: rgba(255, 255, 255, 0.58);
+    --glass-strong: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.95);
+    --glass-shadow: 0 8px 32px rgba(190, 155, 95, 0.16);
+    --text-primary: #4a3d2e;
+    --text-secondary: #8a7a64;
+    --text-muted: #b3a48c;
+    --accent: #f5a623;
+    --accent-deep: #e8930f;
+    --accent-soft: rgba(245, 166, 35, 0.14);
+    --accent-glow: rgba(245, 166, 35, 0.4);
+    --high: #ff6b5e;
+    --high-soft: rgba(255, 107, 94, 0.12);
+    --medium: #f5a623;
+    --medium-soft: rgba(245, 166, 35, 0.13);
+    --low: #7cb98a;
+    --low-soft: rgba(124, 185, 138, 0.14);
+    --ok: #7cb98a;
+    --radius-lg: 22px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    min-width: 1080px;
+    overflow-x: auto;
+    position: relative;
+    background:
+      radial-gradient(ellipse 900px 600px at 12% -5%, rgba(255, 216, 138, 0.55) 0%, transparent 60%),
+      radial-gradient(ellipse 700px 500px at 95% 105%, rgba(255, 196, 120, 0.35) 0%, transparent 55%),
+      linear-gradient(135deg, #fdf8ee 0%, #f7efdd 55%, #f3e8d2 100%);
+    background-attachment: fixed;
+  }
+  /* 光斑装饰 */
+  .bokeh { position: fixed; border-radius: 50%; filter: blur(46px); pointer-events: none; z-index: 0; }
+  .b1 { width: 340px; height: 340px; left: -80px; top: 18%; background: rgba(255, 210, 130, 0.34); }
+  .b2 { width: 260px; height: 260px; right: 6%; top: -60px; background: rgba(255, 190, 110, 0.28); }
+  .b3 { width: 300px; height: 300px; right: 22%; bottom: -100px; background: rgba(255, 226, 170, 0.38); }
+
+  /* ===== 顶栏（浮动玻璃条） ===== */
+  .topbar {
+    position: relative; z-index: 20;
+    height: 68px;
+    display: flex; align-items: center;
+    padding: 0 28px; gap: 14px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 42px; height: 42px; border-radius: 14px;
+    background: linear-gradient(135deg, #ffc964, #f5a623);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 20px;
+    box-shadow: 0 6px 18px var(--accent-glow);
+  }
+  .brand-name { font-size: 19px; font-weight: 700; letter-spacing: 0.3px; }
+  .brand-sub {
+    font-size: 11px; color: var(--text-secondary);
+    background: rgba(255,255,255,0.7); border: 1px solid var(--glass-border);
+    padding: 3px 10px; border-radius: 20px;
+  }
+  .topbar-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+  .btn {
+    background: var(--glass);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 9px 18px;
+    border-radius: 30px;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.18s;
+    display: inline-flex; align-items: center; gap: 7px;
+    box-shadow: 0 3px 14px rgba(190,155,95,0.12);
+  }
+  .btn:hover { background: var(--glass-strong); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(190,155,95,0.2); }
+  .btn.primary {
+    background: linear-gradient(135deg, #ffc964, #f5a623);
+    border-color: transparent; color: #fff; font-weight: 600;
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
+  .btn.primary:hover { filter: brightness(1.06); box-shadow: 0 8px 26px var(--accent-glow); }
+  .btn.toggled {
+    background: linear-gradient(135deg, #c9a4ff, #a877f0);
+    border-color: transparent; color: #fff;
+    box-shadow: 0 6px 18px rgba(168, 119, 240, 0.35);
+  }
+  select.btn { padding-right: 34px; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a7a64' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; }
+
+  /* ===== 主体：浮动卡片布局 ===== */
+  .main {
+    flex: 1; position: relative; z-index: 10;
+    display: grid;
+    grid-template-columns: 296px minmax(420px, 1fr) 384px;
+    gap: 18px;
+    padding: 4px 28px 18px;
+    min-height: 0;
+  }
+
+  .dock { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .glass-card {
+    background: var(--glass);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow);
+    padding: 20px;
+  }
+  .card-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1.2px;
+    color: var(--text-secondary); text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .card-title .ico {
+    width: 26px; height: 26px; border-radius: 9px;
+    background: var(--accent-soft); color: var(--accent-deep);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+  }
+
+  .scene-name { font-size: 17px; font-weight: 700; margin-bottom: 5px; }
+  .scene-note { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
+
+  /* 罗盘 */
+  .compass-wrap { display: flex; justify-content: center; padding: 4px 0; }
+  .compass { width: 172px; height: 172px; position: relative; }
+  .compass svg { width: 100%; height: 100%; }
+
+  /* 分数 + 统计 */
+  .score-wrap { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .score-ring svg { width: 96px; height: 96px; }
+  .score-caption { flex: 1; }
+  .score-caption .big { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .score-caption .sub { font-size: 11.5px; color: var(--text-secondary); line-height: 1.5; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat-chip {
+    border-radius: var(--radius-sm); padding: 10px 6px; text-align: center;
+    background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.9);
+  }
+  .stat-num { font-size: 20px; font-weight: 800; line-height: 1.1; }
+  .stat-label { font-size: 10.5px; color: var(--text-secondary); margin-top: 3px; }
+  .stat-chip.high .stat-num { color: var(--high); }
+  .stat-chip.medium .stat-num { color: var(--medium); }
+  .stat-chip.low .stat-num { color: var(--low); }
+  .stat-chip.pass .stat-num { color: var(--ok); }
+
+  /* ===== 中间舞台 ===== */
+  .stage { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+  .canvas-card {
+    flex: 1; position: relative; min-height: 0;
+    background: rgba(255, 255, 255, 0.34);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.85);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow);
+    overflow: hidden;
+  }
+  #floorCanvas { display: block; width: 100%; height: 100%; }
+  .canvas-hint {
+    position: absolute; top: 14px; left: 16px;
+    font-size: 11.5px; color: var(--text-secondary);
+    background: rgba(255,255,255,0.72); backdrop-filter: blur(10px);
+    padding: 6px 13px; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.95);
+    pointer-events: none;
+  }
+  .canvas-toolbar {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 30px; padding: 7px;
+    box-shadow: 0 6px 22px rgba(190,155,95,0.22);
+  }
+  .tool-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: none; background: transparent; cursor: pointer;
+    font-size: 15px; color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .tool-btn:hover { background: var(--accent-soft); color: var(--accent-deep); }
+  .tool-btn.active { background: linear-gradient(135deg, #ffc964, #f5a623); color: #fff; }
+
+  /* 中央诊断卡（对应 Figma 警示卡） */
+  .alert-card {
+    display: none; align-items: flex-start; gap: 14px;
+    background: var(--glass-strong);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--glass-shadow);
+    padding: 16px 20px;
+  }
+  .alert-card.show { display: flex; }
+  .alert-icon {
+    width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ffb35c, #f5862a);
+    color: #fff; font-size: 19px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(245, 134, 42, 0.4);
+  }
+  .alert-body { flex: 1; min-width: 0; }
+  .alert-msg { font-size: 14px; font-weight: 600; line-height: 1.55; margin-bottom: 10px; }
+  .alert-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-pill {
+    padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.6); color: var(--text-secondary);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .filter-pill:hover { transform: translateY(-1px); }
+  .filter-pill.active { background: linear-gradient(135deg, #ffc964, #f5a623); color: #fff; border-color: transparent; box-shadow: 0 4px 12px var(--accent-glow); }
+
+  /* ===== 右侧结果卡 ===== */
+  .results-card { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .results-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .result-count { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+  .tabs {
+    display: flex; gap: 6px; padding: 5px;
+    background: rgba(255,255,255,0.5); border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.9); margin-bottom: 14px;
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 8px 4px;
+    font-size: 12.5px; font-weight: 600; border-radius: 18px;
+    cursor: pointer; color: var(--text-muted); transition: all 0.18s;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, #ffc964, #f5a623);
+    color: #fff; box-shadow: 0 4px 14px var(--accent-glow);
+  }
+  .results-scroll { flex: 1; overflow-y: auto; min-height: 0; padding-right: 4px; }
+  .results-scroll::-webkit-scrollbar { width: 5px; }
+  .results-scroll::-webkit-scrollbar-thumb { background: rgba(190,155,95,0.3); border-radius: 3px; }
+
+  /* 违规卡 */
+  .violation {
+    background: rgba(255,255,255,0.66);
+    border: 1px solid rgba(255,255,255,0.95);
+    border-radius: var(--radius-md);
+    padding: 15px 15px 15px 18px;
+    margin-bottom: 11px; cursor: pointer;
+    transition: all 0.18s; position: relative; overflow: hidden;
+  }
+  .violation::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  }
+  .violation.high::before { background: linear-gradient(180deg, #ff8a7e, #ff6b5e); }
+  .violation.medium::before { background: linear-gradient(180deg, #ffc964, #f5a623); }
+  .violation.low::before { background: linear-gradient(180deg, #9ed3aa, #7cb98a); }
+  .violation:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(190,155,95,0.22); }
+  .violation.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft), 0 8px 26px var(--accent-glow);
+    background: rgba(255,255,255,0.85);
+  }
+  .v-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .v-sev {
+    font-size: 10px; font-weight: 800; padding: 3px 9px;
+    border-radius: 12px; letter-spacing: 0.5px;
+  }
+  .v-sev.high { background: var(--high-soft); color: var(--high); }
+  .v-sev.medium { background: var(--medium-soft); color: var(--medium); }
+  .v-sev.low { background: var(--low-soft); color: var(--low); }
+  .v-name { font-size: 13.5px; font-weight: 700; }
+  .v-id { font-size: 10.5px; color: var(--text-muted); margin-left: auto; font-family: ui-monospace, monospace; }
+  .v-detail { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 9px; }
+  .v-suggest {
+    font-size: 12.5px; color: #9c6d10; line-height: 1.6;
+    padding: 9px 12px; border-radius: 10px;
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+  }
+  .v-suggest::before { content: "✦ 建议："; font-weight: 700; }
+
+  .empty-state { text-align: center; padding: 52px 20px; color: var(--text-muted); }
+  .empty-state .icon { font-size: 38px; margin-bottom: 12px; opacity: 0.55; }
+
+  .passed-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 4px; font-size: 12.5px; color: var(--text-secondary);
+    border-bottom: 1px dashed rgba(190,155,95,0.18);
+  }
+  .passed-item:last-child { border-bottom: none; }
+  .passed-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+
+  /* 文化参考 */
+  .culture-box {
+    background: linear-gradient(135deg, rgba(200,164,255,0.14), rgba(245,166,35,0.1));
+    border: 1px solid rgba(190,150,255,0.35);
+    border-radius: var(--radius-md); padding: 16px;
+  }
+  .culture-title { font-size: 13.5px; font-weight: 700; color: #8b5cf0; margin-bottom: 8px; }
+  .culture-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.7; }
+  .culture-limits { margin-top: 9px; font-size: 11.5px; color: var(--text-muted); }
+  .culture-limits li { margin-left: 16px; margin-bottom: 3px; }
+
+  .skip-note { margin-top: 10px; font-size: 11.5px; color: var(--medium); text-align: center; padding: 8px;
+    background: var(--medium-soft); border-radius: 10px; }
+
+  /* 加载 & Toast */
+  .loading {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(250, 245, 234, 0.65);
+    backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center;
+  }
+  .loading.show { display: flex; }
+  .spinner {
+    width: 42px; height: 42px;
+    border: 3px solid rgba(245,166,35,0.25); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: rgba(74, 61, 46, 0.92); color: #fff;
+    padding: 11px 22px; border-radius: 26px; font-size: 13px;
+    z-index: 200; box-shadow: 0 10px 30px rgba(74,61,46,0.35);
+    animation: slideUp 0.3s;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 16px); } }
+</style>
+</head>
+<body>
+<div class="bokeh b1"></div><div class="bokeh b2"></div><div class="bokeh b3"></div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🏠</div>
+    <div class="brand-name">ImmerseHome</div>
+    <div class="brand-sub">风水空间诊断</div>
+  </div>
+  <div class="topbar-actions">
+    <select id="sceneSelect" class="btn" title="选择示例户型">
+      <option value="">选择户型…</option>
+    </select>
+    <a class="btn" href="/plan" style="text-decoration:none;border-color:rgba(233,162,76,.5);color:#ffd79a;background:rgba(233,162,76,.12)"
+       title="上传户型图照片 → 自动识墙 → 摆家具 → 生成 3D">🖼 上传户型图</a>
+    <button class="btn" id="uploadBtn" title="直接上传户型 JSON（高级）">⬆ JSON</button>
+    <button class="btn" id="cultureBtn" title="启用命卦文化参考">☯ 命卦参考</button>
+    <a class="btn" href="/3d" title="进入第一视角 3D 漫游" style="text-decoration:none">🌐 3D 漫游</a>
+    <button class="btn primary" id="auditBtn">⚡ 开始诊断</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- 左侧浮动卡 -->
+  <div class="dock">
+    <div class="glass-card">
+      <div class="card-title"><span class="ico">◈</span>户型信息</div>
+      <div class="scene-name" id="sceneName">未加载户型</div>
+      <div class="scene-note" id="sceneNote">选择示例户型或上传 JSON，开始空间诊断</div>
+    </div>
+
+    <div class="glass-card">
+      <div class="card-title"><span class="ico">🧭</span>方位罗盘</div>
+      <div class="compass-wrap"><div class="compass" id="compass"></div></div>
+    </div>
+
+    <div class="glass-card">
+      <div class="card-title"><span class="ico">📊</span>诊断概览</div>
+      <div class="score-wrap">
+        <div class="score-ring" id="scoreRing"></div>
+        <div class="score-caption">
+          <div class="big" id="scoreVerdict">等待诊断</div>
+          <div class="sub">基于 18 条风水几何规则的空间健康评估</div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-chip high"><div class="stat-num" id="cntHigh">0</div><div class="stat-label">高优先</div></div>
+        <div class="stat-chip medium"><div class="stat-num" id="cntMed">0</div><div class="stat-label">中优先</div></div>
+        <div class="stat-chip low"><div class="stat-num" id="cntLow">0</div><div class="stat-label">低优先</div></div>
+        <div class="stat-chip pass"><div class="stat-num" id="cntPass">0</div><div class="stat-label">已通过</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中间舞台 -->
+  <div class="stage">
+    <div class="alert-card" id="alertCard">
+      <div class="alert-icon">◈</div>
+      <div class="alert-body">
+        <div class="alert-msg" id="alertMsg"></div>
+        <div class="alert-filters" id="alertFilters">
+          <div class="filter-pill active" data-filter="all">全部问题</div>
+          <div class="filter-pill" data-filter="high">高优先</div>
+          <div class="filter-pill" data-filter="medium">中优先</div>
+          <div class="filter-pill" data-filter="low">低优先</div>
+        </div>
+      </div>
+    </div>
+    <div class="canvas-card">
+      <canvas id="floorCanvas"></canvas>
+      <div class="canvas-hint" id="canvasHint">加载户型后查看空间布局 · 点击右侧问题卡可定位</div>
+      <div class="canvas-toolbar">
+        <button class="tool-btn" id="zoomIn" title="放大">＋</button>
+        <button class="tool-btn" id="zoomOut" title="缩小">－</button>
+        <button class="tool-btn" id="resetView" title="重置视图">⊙</button>
+        <button class="tool-btn active" id="toggleLabels" title="显示/隐藏标签">🏷</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧结果 -->
+  <div class="dock">
+    <div class="glass-card results-card">
+      <div class="results-head">
+        <div class="card-title" style="margin:0"><span class="ico">📋</span>诊断结果</div>
+        <div class="result-count" id="resultCount">—</div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="violations">问题清单</div>
+        <div class="tab" data-tab="passed">通过项</div>
+        <div class="tab" data-tab="culture">文化参考</div>
+      </div>
+      <div class="results-scroll">
+        <div id="violationsList"></div>
+        <div id="passedList" style="display:none;"></div>
+        <div id="cultureBox" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json" style="display:none" />
+<div class="loading" id="loading"><div class="spinner"></div></div>
+
+<script>
+// ============================================================
+//  全局状态
+// ============================================================
+let sceneData = null;
+let auditResult = null;
+let selectedVId = null;
+let cultureEnabled = false;
+let showLabels = true;
+let viewScale = 1;
+let viewOffset = { x: 0, y: 0 };
+let currentFilter = "all";
+
+// 暖色调画布配色（对应 Figma 阳光客厅风格）
+const COLORS = {
+  wall: "#8a7458",
+  wallWindow: "#6ba3c9",
+  door: "#f5a623",
+  beam: "rgba(245,166,35,0.16)",
+  beamBorder: "rgba(232,147,15,0.55)",
+  grid: "rgba(190,155,95,0.13)",
+  text: "#6b5c48",
+  furniture: "#efe4cf",
+  furnitureBorder: "#bda27c",
+  bed: "#e3d4f0", bedBorder: "#a98fd0",
+  sofa: "#d3e4c0", sofaBorder: "#8fb277",
+  stove: "#f2c4b4", stoveBorder: "#d98a70",
+  sink: "#c4dce8", sinkBorder: "#7fa8c0",
+  mirror: "rgba(160,190,230,0.35)",
+  wardrobe: "#eadcc0", wardrobeBorder: "#b09468",
+  highlight: "#ff5e4d",
+  highlightGlow: "rgba(255,94,77,0.35)",
+};
+
+// 房间暖色粉彩（对应 Figma 户型图的桃橙配色）
+const ROOM_COLORS = {
+  "主卧": "#ffe3cc", "次卧": "#fff0d6", "卧室": "#ffe9d4",
+  "客厅": "#e9f0da", "餐厅": "#ffe0c4", "厨房": "#f4ead4",
+  "卫生间": "#dfeef1", "卫": "#dfeef1", "阳台": "#e6f0e0", "玄关": "#f6ecd8",
+};
+const ROOM_DEFAULT = "rgba(255,255,255,0.5)";
+
+// ============================================================
+//  初始化
+// ============================================================
+async function init() {
+  resizeCanvas();
+  window.addEventListener("resize", () => { resizeCanvas(); render(); });
+  drawCompass();
+  drawScoreRing(0, 18, true);
+  await loadScenes();
+  document.getElementById("auditBtn").addEventListener("click", runAudit);
+  document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+  document.getElementById("fileInput").addEventListener("change", handleFile);
+  document.getElementById("cultureBtn").addEventListener("click", toggleCulture);
+  document.getElementById("sceneSelect").addEventListener("change", loadScene);
+  document.getElementById("zoomIn").addEventListener("click", () => zoom(1.2));
+  document.getElementById("zoomOut").addEventListener("click", () => zoom(0.8));
+  document.getElementById("resetView").addEventListener("click", resetView);
+  document.getElementById("toggleLabels").addEventListener("click", function() {
+    showLabels = !showLabels; this.classList.toggle("active", showLabels); render();
+  });
+  document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", switchTab));
+  document.querySelectorAll(".filter-pill").forEach(p => p.addEventListener("click", function() {
+    document.querySelectorAll(".filter-pill").forEach(x => x.classList.remove("active"));
+    this.classList.add("active");
+    currentFilter = this.dataset.filter;
+    renderResults();
+  }));
+}
+
+function switchTab(e) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  e.target.classList.add("active");
+  const tab = e.target.dataset.tab;
+  document.getElementById("violationsList").style.display = tab === "violations" ? "" : "none";
+  document.getElementById("passedList").style.display = tab === "passed" ? "" : "none";
+  document.getElementById("cultureBox").style.display = tab === "culture" ? "" : "none";
+}
+
+function resizeCanvas() {
+  const card = document.querySelector(".canvas-card");
+  const canvas = document.getElementById("floorCanvas");
+  const w = card.clientWidth, h = card.clientHeight;
+  if (w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
+}
+
+// ============================================================
+//  场景加载
+// ============================================================
+async function loadScenes() {
+  try {
+    const res = await fetch("/api/scenes");
+    const scenes = await res.json();
+    const sel = document.getElementById("sceneSelect");
+    scenes.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+
+async function loadScene(e) {
+  const id = e.target.value;
+  if (!id) return;
+  showLoading(true);
+  try {
+    const res = await fetch("/api/scene/" + id);
+    sceneData = await res.json();
+    document.getElementById("sceneName").textContent = sceneData.meta?.name || id;
+    document.getElementById("sceneNote").textContent = sceneData.meta?.note || "";
+    selectedVId = null; auditResult = null;
+    clearResults();
+    render();
+  } catch (e) { toast("加载户型失败：" + e.message); }
+  finally { showLoading(false); }
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      sceneData = JSON.parse(ev.target.result);
+      document.getElementById("sceneName").textContent = sceneData.meta?.name || file.name;
+      document.getElementById("sceneNote").textContent = sceneData.meta?.note || "已上传：" + file.name;
+      selectedVId = null; auditResult = null;
+      clearResults(); render();
+    } catch (err) { toast("JSON 解析失败：" + err.message); }
+  };
+  reader.readAsText(file, "utf-8");
+  e.target.value = "";
+}
+
+// ============================================================
+//  运行审查
+// ============================================================
+async function runAudit() {
+  if (!sceneData) { toast("请先加载户型"); return; }
+  showLoading(true);
+  try {
+    const res = await fetch("/api/audit?culture=" + cultureEnabled, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sceneData),
+    });
+    auditResult = await res.json();
+    currentFilter = "all";
+    document.querySelectorAll(".filter-pill").forEach(x => x.classList.toggle("active", x.dataset.filter === "all"));
+    renderResults();
+    render();
+  } catch (e) { toast("诊断失败：" + e.message); }
+  finally { showLoading(false); }
+}
+
+function toggleCulture() {
+  cultureEnabled = !cultureEnabled;
+  const btn = document.getElementById("cultureBtn");
+  btn.classList.toggle("toggled", cultureEnabled);
+  if (auditResult) runAudit();
+}
+
+// ============================================================
+//  结果渲染
+// ============================================================
+function renderResults() {
+  if (!auditResult) return;
+  const s = auditResult.summary;
+  document.getElementById("cntHigh").textContent = s.by_severity.high || 0;
+  document.getElementById("cntMed").textContent = s.by_severity.medium || 0;
+  document.getElementById("cntLow").textContent = s.by_severity.low || 0;
+  document.getElementById("cntPass").textContent = s.passed;
+  document.getElementById("resultCount").textContent = s.violations + " 项问题 / " + s.passed + " 项通过";
+  const score = Math.round((s.passed / auditResult.rule_count) * 100);
+  drawScoreRing(score, auditResult.rule_count);
+
+  // 中央诊断卡文案（模仿 Figma 诊断提示语气）
+  const alertCard = document.getElementById("alertCard");
+  alertCard.classList.add("show");
+  let verdict, msg;
+  if (s.violations === 0) {
+    verdict = "空间状态极佳"; msg = "布局通过全部 " + auditResult.rule_count + " 条风水检查，动线流畅、采光均衡，无需调整。";
+  } else {
+    const parts = [];
+    if (s.by_severity.high) parts.push("高优先级问题 " + s.by_severity.high + " 处");
+    if (s.by_severity.medium) parts.push("中优先级 " + s.by_severity.medium + " 处");
+    if (s.by_severity.low) parts.push("低优先级 " + s.by_severity.low + " 处");
+    verdict = score >= 60 ? "整体尚可，建议微调" : "建议针对性优化";
+    msg = "检测到 " + parts.join("、") + "，点击下方分类可筛选查看，让家更舒适。";
+  }
+  document.getElementById("alertMsg").textContent = msg;
+  document.getElementById("scoreVerdict").textContent = verdict;
+
+  // 违规列表（含筛选）
+  const vlist = document.getElementById("violationsList");
+  const list = auditResult.violations.filter(v => currentFilter === "all" || v.severity === currentFilter);
+  if (list.length === 0) {
+    vlist.innerHTML = '<div class="empty-state"><div class="icon">🍃</div><div>' +
+      (auditResult.violations.length === 0 ? "布局通过全部检查" : "该分类下暂无问题") + "</div></div>";
+  } else {
+    vlist.innerHTML = list.map(v => `
+      <div class="violation ${v.severity}" data-id="${v.rule_id}">
+        <div class="v-head">
+          <span class="v-sev ${v.severity}">${sevLabel(v.severity)}</span>
+          <span class="v-name">${v.name}</span>
+          <span class="v-id">${v.rule_id}</span>
+        </div>
+        <div class="v-detail">${v.detail || v.violation_text}</div>
+        <div class="v-suggest">${v.suggestion}</div>
+      </div>`).join("");
+    vlist.querySelectorAll(".violation").forEach(el => {
+      el.addEventListener("click", () => {
+        document.querySelectorAll(".violation").forEach(x => x.classList.remove("selected"));
+        el.classList.add("selected");
+        selectedVId = el.dataset.id;
+        render();
+      });
+    });
+  }
+
+  // 已通过
+  const plist = document.getElementById("passedList");
+  plist.innerHTML = auditResult.passed_rules.map(p =>
+    '<div class="passed-item"><span class="passed-dot"></span>' + p.name +
+    '<span style="color:var(--text-muted);font-size:11px;margin-left:auto;">' + p.rule_id + "</span></div>").join("");
+
+  // 文化参考
+  const cbox = document.getElementById("cultureBox");
+  const c = auditResult.culture_reference;
+  if (c.enabled && c.available) {
+    cbox.innerHTML = `
+      <div class="culture-box">
+        <div class="culture-title">☯ 八宅派命卦 · 文化参考</div>
+        <div class="culture-text">${c.text}</div>
+        <div class="culture-text" style="margin-top:8px;">命卦：${c.ming_gua.name}（${c.ming_gua.group}）<br>宅向：坐${c.house.sitting}朝${c.house.facing}（${c.house.gua}宅）</div>
+        <ul class="culture-limits">${c.limits.map(l => "<li>" + l + "</li>").join("")}</ul>
+      </div>`;
+  } else {
+    cbox.innerHTML = '<div class="empty-state"><div class="icon">☯</div><div>' +
+      (c.reason || "点击顶部「命卦参考」按钮启用") + "</div></div>";
+  }
+
+  if (s.skipped > 0) {
+    const note = document.createElement("div");
+    note.className = "skip-note";
+    note.textContent = "⚠ 有 " + s.skipped + " 项因数据缺失未能检查";
+    vlist.appendChild(note);
+  }
+}
+
+function sevLabel(s) { return { high: "高", medium: "中", low: "低" }[s] || s; }
+
+function clearResults() {
+  document.getElementById("violationsList").innerHTML = "";
+  document.getElementById("passedList").innerHTML = "";
+  document.getElementById("cultureBox").innerHTML = "";
+  document.getElementById("alertCard").classList.remove("show");
+  document.getElementById("resultCount").textContent = "—";
+  ["cntHigh", "cntMed", "cntLow", "cntPass"].forEach(id => document.getElementById(id).textContent = "0");
+  document.getElementById("scoreVerdict").textContent = "等待诊断";
+  drawScoreRing(0, 18, true);
+}
+
+// ============================================================
+//  Canvas 渲染
+// ============================================================
+const canvas = document.getElementById("floorCanvas");
+const ctx = canvas.getContext("2d");
+
+function getBounds() {
+  if (!sceneData) return { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const add = (x, y) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
+  (sceneData.walls || []).forEach(w => { add(w.a[0], w.a[1]); add(w.b[0], w.b[1]); });
+  (sceneData.furniture || []).forEach(f => rectCorners(f.rect).forEach(p => add(p[0], p[1])));
+  if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+  return { minX: minX - 1, minY: minY - 1, maxX: maxX + 1, maxY: maxY + 1 };
+}
+
+function rectCorners(r) {
+  const rad = r.heading * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hl = r.len / 2, hw = r.wid / 2;
+  return [[-hl,-hw],[hl,-hw],[hl,hw],[-hl,hw]].map(([u, v]) => [
+    r.cx + u * cos - v * sin, r.cy + u * sin + v * cos
+  ]);
+}
+
+function worldToScreen(x, y, bounds) {
+  const w = canvas.width, h = canvas.height;
+  const bw = bounds.maxX - bounds.minX, bh = bounds.maxY - bounds.minY;
+  const scale = Math.min(w / bw, h / bh) * 0.9 * viewScale;
+  const ox = (w - bw * scale) / 2 - bounds.minX * scale + viewOffset.x;
+  const oy = (h + bh * scale) / 2 + bounds.minY * scale + viewOffset.y;
+  return [x * scale + ox, -y * scale + oy, scale];
+}
+
+function render() {
+  resizeCanvas();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!sceneData) return;
+  const bounds = getBounds();
+  drawGrid(bounds);
+  (sceneData.rooms || []).forEach(r => drawRoom(r, bounds));
+  (sceneData.beams || []).forEach(b => drawBeam(b, bounds));
+  (sceneData.walls || []).forEach(w => drawWall(w, bounds));
+  (sceneData.doors || []).forEach(d => drawDoor(d, bounds));
+  (sceneData.furniture || []).forEach(f => drawFurniture(f, bounds));
+  if (selectedVId && auditResult) {
+    const v = auditResult.violations.find(x => x.rule_id === selectedVId);
+    if (v) highlightObjects(v.objects, bounds);
+  }
+}
+
+function drawGrid(bounds) {
+  ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 1;
+  for (let x = Math.ceil(bounds.minX); x <= bounds.maxX; x++) {
+    const [x1, y1] = worldToScreen(x, bounds.minY, bounds);
+    const [x2, y2] = worldToScreen(x, bounds.maxY, bounds);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  for (let y = Math.ceil(bounds.minY); y <= bounds.maxY; y++) {
+    const [x1, y1] = worldToScreen(bounds.minX, y, bounds);
+    const [x2, y2] = worldToScreen(bounds.maxX, y, bounds);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+}
+
+function drawRoom(r, bounds) {
+  const corners = rectCorners(r.rect).map(([x, y]) => worldToScreen(x, y, bounds));
+  ctx.fillStyle = ROOM_COLORS[r.name] || ROOM_DEFAULT;
+  ctx.beginPath();
+  ctx.moveTo(corners[0][0], corners[0][1]);
+  corners.slice(1).forEach(c => ctx.lineTo(c[0], c[1]));
+  ctx.closePath(); ctx.fill();
+  // 房间名标签
+  if (showLabels && r.name) {
+    const [cx, cy] = worldToScreen(r.rect.cx, r.rect.cy, bounds);
+    ctx.fillStyle = "rgba(122, 100, 70, 0.6)";
+    ctx.font = "600 12px -apple-system, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(r.name, cx, cy);
+  }
+}
+
+function drawWall(w, bounds) {
+  const [x1, y1] = worldToScreen(w.a[0], w.a[1], bounds);
+  const [x2, y2] = worldToScreen(w.b[0], w.b[1], bounds);
+  ctx.strokeStyle = w.is_window ? COLORS.wallWindow : COLORS.wall;
+  ctx.lineWidth = w.is_window ? 3 : 5;
+  ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  if (w.is_window) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * 4, ny = dx / len * 4;
+    ctx.strokeStyle = "rgba(107,163,201,0.45)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x1 + nx, y1 + ny); ctx.lineTo(x2 + nx, y2 + ny); ctx.stroke();
+  }
+}
+
+function drawDoor(d, bounds) {
+  const [cx, cy, scale] = worldToScreen(d.center[0], d.center[1], bounds);
+  const w = d.width * scale;
+  const nx = d.normal[0], ny = -d.normal[1];
+  const perpX = -ny, perpY = nx;
+  ctx.strokeStyle = COLORS.door; ctx.lineWidth = 3; ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx - perpX * w / 2, cy - perpY * w / 2);
+  ctx.lineTo(cx + perpX * w / 2, cy + perpY * w / 2);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(245,166,35,0.4)"; ctx.lineWidth = 1.2;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(cx + perpX * w / 2, cy + perpY * w / 2);
+  ctx.arc(cx + perpX * w / 2, cy + perpY * w / 2, w, Math.atan2(-ny, nx), Math.atan2(-ny, nx) + Math.PI / 2, false);
+  ctx.stroke(); ctx.setLineDash([]);
+  if (d.is_entry) {
+    ctx.fillStyle = "#e8930f";
+    ctx.beginPath(); ctx.arc(cx + nx * 12, cy + ny * 12, 4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawBeam(b, bounds) {
+  const [ax, ay] = worldToScreen(b.a[0], b.a[1], bounds);
+  const [bx, by] = worldToScreen(b.b[0], b.b[1], bounds);
+  const dx = bx - ax, dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  const [, , scale] = worldToScreen(0, 0, bounds);
+  const hw = b.width * scale / 2;
+  ctx.fillStyle = COLORS.beam; ctx.strokeStyle = COLORS.beamBorder; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(ax + nx * hw, ay + ny * hw);
+  ctx.lineTo(bx + nx * hw, by + ny * hw);
+  ctx.lineTo(bx - nx * hw, by - ny * hw);
+  ctx.lineTo(ax - nx * hw, ay - ny * hw);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+function drawFurniture(f, bounds) {
+  const r = f.rect;
+  const corners = rectCorners(r).map(([x, y]) => worldToScreen(x, y, bounds));
+  const type = (f.type || "other").toLowerCase();
+  let fill = COLORS.furniture, stroke = COLORS.furnitureBorder;
+  if (type === "bed") { fill = COLORS.bed; stroke = COLORS.bedBorder; }
+  else if (type === "sofa") { fill = COLORS.sofa; stroke = COLORS.sofaBorder; }
+  else if (type === "stove") { fill = COLORS.stove; stroke = COLORS.stoveBorder; }
+  else if (type === "sink") { fill = COLORS.sink; stroke = COLORS.sinkBorder; }
+  else if (type === "mirror") { fill = COLORS.mirror; stroke = "rgba(130,160,210,0.7)"; }
+  else if (type === "wardrobe") { fill = COLORS.wardrobe; stroke = COLORS.wardrobeBorder; }
+
+  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(corners[0][0], corners[0][1]);
+  corners.slice(1).forEach(c => ctx.lineTo(c[0], c[1]));
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  if (type === "bed" || type === "sofa") {
+    const rad = r.heading * Math.PI / 180;
+    const [cx, cy, scale] = worldToScreen(r.cx, r.cy, bounds);
+    const backX = cx - Math.cos(rad) * r.len * scale / 2;
+    const backY = cy + Math.sin(rad) * r.len * scale / 2;
+    const hx = Math.sin(rad) * r.wid * scale / 2;
+    const hy = Math.cos(rad) * r.wid * scale / 2;
+    ctx.strokeStyle = stroke; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(backX - hx, backY - hy);
+    ctx.lineTo(backX + hx, backY + hy);
+    ctx.stroke();
+  }
+
+  if (showLabels) {
+    const [cx, cy] = worldToScreen(r.cx, r.cy, bounds);
+    ctx.fillStyle = "rgba(74, 61, 46, 0.85)";
+    ctx.font = "600 11px -apple-system, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(f.name || f.id, cx, cy);
+  }
+}
+
+function highlightObjects(ids, bounds) {
+  if (!ids) return;
+  (sceneData.furniture || []).forEach(f => {
+    if (ids.includes(f.id)) {
+      const corners = rectCorners(f.rect).map(([x, y]) => worldToScreen(x, y, bounds));
+      glowRect(corners);
+    }
+  });
+  (sceneData.walls || []).forEach(w => {
+    if (ids.includes(w.id)) {
+      const [x1, y1] = worldToScreen(w.a[0], w.a[1], bounds);
+      const [x2, y2] = worldToScreen(w.b[0], w.b[1], bounds);
+      ctx.strokeStyle = COLORS.highlight; ctx.lineWidth = 6;
+      ctx.shadowColor = COLORS.highlightGlow; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  });
+  (sceneData.doors || []).forEach(d => {
+    if (ids.includes(d.id)) {
+      const [cx, cy] = worldToScreen(d.center[0], d.center[1], bounds);
+      ctx.fillStyle = COLORS.highlight;
+      ctx.shadowColor = COLORS.highlightGlow; ctx.shadowBlur = 20;
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  });
+  (sceneData.beams || []).forEach(b => {
+    if (ids.includes(b.id)) {
+      const [ax, ay] = worldToScreen(b.a[0], b.a[1], bounds);
+      const [bx, by] = worldToScreen(b.b[0], b.b[1], bounds);
+      ctx.strokeStyle = COLORS.highlight; ctx.lineWidth = 4;
+      ctx.shadowColor = COLORS.highlightGlow; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  });
+}
+
+function glowRect(corners) {
+  ctx.strokeStyle = COLORS.highlight; ctx.lineWidth = 3;
+  ctx.shadowColor = COLORS.highlightGlow; ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.moveTo(corners[0][0], corners[0][1]);
+  corners.slice(1).forEach(c => ctx.lineTo(c[0], c[1]));
+  ctx.closePath(); ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function zoom(factor) {
+  viewScale = Math.max(0.3, Math.min(5, viewScale * factor));
+  render();
+}
+function resetView() { viewScale = 1; viewOffset = { x: 0, y: 0 }; render(); }
+
+// ============================================================
+//  罗盘（暖色版）
+// ============================================================
+function drawCompass() {
+  const el = document.getElementById("compass");
+  const dirs = [
+    { name: "北", angle: 90, color: "#ff6b5e" },
+    { name: "东北", angle: 45 }, { name: "东", angle: 0 }, { name: "东南", angle: -45 },
+    { name: "南", angle: -90 }, { name: "西南", angle: -135 },
+    { name: "西", angle: 180 }, { name: "西北", angle: 135 },
+  ];
+  let svg = '<svg viewBox="0 0 160 160">';
+  svg += '<circle cx="80" cy="80" r="72" fill="rgba(255,255,255,0.5)" stroke="rgba(190,155,95,0.3)"/>';
+  svg += '<circle cx="80" cy="80" r="60" fill="none" stroke="rgba(190,155,95,0.18)"/>';
+  dirs.forEach(d => {
+    const rad = d.angle * Math.PI / 180;
+    const x1 = 80 + Math.cos(rad) * 60, y1 = 80 - Math.sin(rad) * 60;
+    const x2 = 80 + Math.cos(rad) * 72, y2 = 80 - Math.sin(rad) * 72;
+    svg += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (d.color || "rgba(180,155,110,0.6)") + '"/>';
+    const tx = 80 + Math.cos(rad) * 86, ty = 80 - Math.sin(rad) * 86;
+    svg += '<text x="' + tx + '" y="' + ty + '" text-anchor="middle" dominant-baseline="middle" fill="' + (d.color || "#8a7a64") + '" font-size="11" font-weight="' + (d.name === "北" ? 700 : 400) + '">' + d.name + "</text>";
+  });
+  svg += '<polygon points="80,20 75,80 80,75 85,80" fill="#ff6b5e" opacity="0.85"/>';
+  svg += '<polygon points="80,140 75,80 80,85 85,80" fill="rgba(180,155,110,0.5)"/>';
+  svg += '<circle cx="80" cy="80" r="4" fill="#f5a623"/>';
+  svg += "</svg>";
+  el.innerHTML = svg;
+}
+
+// ============================================================
+//  评分环（暖色版）
+// ============================================================
+function drawScoreRing(score, total, empty) {
+  const el = document.getElementById("scoreRing");
+  const r = 40, c = 2 * Math.PI * r;
+  const offset = c - (score / 100) * c;
+  let color = "#ff6b5e";
+  if (score >= 80) color = "#7cb98a";
+  else if (score >= 50) color = "#f5a623";
+  if (empty) color = "rgba(190,155,95,0.3)";
+  el.innerHTML = `
+    <svg viewBox="0 0 110 110">
+      <circle cx="55" cy="55" r="${r}" fill="none" stroke="rgba(190,155,95,0.18)" stroke-width="9"/>
+      <circle cx="55" cy="55" r="${r}" fill="none" stroke="${color}" stroke-width="9"
+        stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"
+        transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 0.6s"/>
+      <text x="55" y="52" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="800" fill="${color}">${score}</text>
+      <text x="55" y="70" text-anchor="middle" font-size="9" fill="#b3a48c">${score}/100 分</text>
+    </svg>`;
+}
+
+// ============================================================
+//  工具
+// ============================================================
+function showLoading(b) { document.getElementById("loading").classList.toggle("show", b); }
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+init();
+</script>
+</body>
+</html>
