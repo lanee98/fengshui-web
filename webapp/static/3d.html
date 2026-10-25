@@ -382,6 +382,39 @@
   }
   .crosshair::before { left: 50%; top: 0; width: 1.5px; height: 100%; transform: translateX(-50%); }
   .crosshair::after { top: 50%; left: 0; height: 1.5px; width: 100%; transform: translateY(-50%); }
+  .camera-help {
+    position: fixed; left: 30px; bottom: 26px; z-index: 29; max-width: 350px;
+    padding: 10px 14px; border-radius: 14px; background: rgba(26,20,15,.86);
+    border: 1px solid var(--hair); color: var(--t2); font-size: 11px; line-height: 1.8;
+    pointer-events: none;
+  }
+  #app canvas { touch-action: none; }
+  .manual-panel {
+    position: fixed; top: 150px; right: 30px; bottom: 110px; z-index: 36;
+    width: min(360px, calc(100vw - 40px)); overflow-y: auto;
+    padding: 20px; border-radius: 20px; background: rgba(28,23,19,.96);
+    border: 1px solid var(--hair-2); box-shadow: var(--shadow);
+  }
+  .manual-panel[hidden] { display: none; }
+  .manual-panel h3 { font-size: 17px; }
+  .manual-panel .manual-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .manual-panel label { display: block; font-size: 12px; color: var(--t2); margin: 13px 0 6px; }
+  .manual-panel select, .manual-panel input {
+    width: 100%; padding: 9px 10px; border-radius: 9px; font: inherit; font-size: 13px;
+    border: 1px solid var(--hair-2); color: var(--t1); background: #302a24;
+  }
+  .manual-panel p { color: var(--t3); font-size: 11.5px; line-height: 1.7; margin-top: 8px; }
+  .manual-panel .manual-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  #manualFeedback { padding: 10px; background: rgba(255,255,255,.05); border-radius: 10px; color: var(--t2); }
+  .transform-hint {
+    position: fixed; left: 50%; top: 135px; transform: translateX(-50%); z-index: 31;
+    max-width: min(370px, calc(100vw - 60px)); padding: 12px 14px;
+    background: rgba(28,23,19,.93); border: 1px solid var(--hair-2); border-radius: 14px;
+    font-size: 11px; line-height: 1.8; color: var(--t2);
+  }
+  .transform-hint[hidden] { display: none; }
+  .transform-hint b { color: var(--amber-2); font-size: 12px; }
+  .transform-hint button { margin-top: 7px; }
 </style>
 </head>
 <body>
@@ -401,18 +434,48 @@
     </div>
   </div>
   <div class="top-right">
+    <button class="gbtn" id="manualRepairBtn">手动修复</button>
+    <button class="gbtn" id="resetViewBtn">复位总览</button>
+    <button class="gbtn" onclick="location.href='/plan?v=compare1'">修改户型</button>
     <button class="gbtn" id="roamBtn">自由漫游</button>
-    <button class="gbtn" onclick="location.href='/'">平面图</button>
+    <button class="gbtn" id="floorPlanBtn">平面图（前／后）</button>
   </div>
 </header>
 
 <nav class="rooms" id="rooms"></nav>
+<div class="transform-hint" id="transformHint" hidden>
+  <b id="transformName"></b>
+  <div>拖红／蓝箭头平移 · 拖中央方块自由移动<br>拖金色圆环旋转 · Alt 自由微调 · Esc 取消</div>
+  <div id="transformValue">松开后自动复检并保存，可在右侧继续输入数值调整。</div>
+  <button class="gbtn" id="clearFurnitureSelection" type="button">取消选择</button>
+</div>
 
 <!-- 左侧叙事步骤 -->
 <nav class="rail" id="rail"></nav>
 
 <!-- 右侧详情卡 -->
 <aside class="card" id="card"></aside>
+<aside class="manual-panel" id="manualPanel" aria-label="手动修复家具" hidden>
+  <div class="manual-head"><h3>手动修复</h3><button class="gbtn" type="button" id="manualClose">关闭</button></div>
+  <form id="manualForm">
+    <label for="manualFurniture">选择家具</label>
+    <select id="manualFurniture"></select>
+    <p id="manualCurrent"></p>
+    <label for="manualSide">左右移动（米）</label>
+    <input id="manualSide" type="number" step="0.05" value="0" required>
+    <label for="manualDepth">前后移动（米）</label>
+    <input id="manualDepth" type="number" step="0.05" value="0" required>
+    <p>按当前视角：左右正数向右、负数向左；前后正数向远处、负数向近处。填 0 表示不移动。</p>
+    <label for="manualTurn">旋转角度增量（°）</label>
+    <input id="manualTurn" type="number" step="15" value="0" required>
+    <p>例如左右填 0.3，即向画面右侧移动 30 厘米；旋转填 90，即在当前朝向上增加 90°。</p>
+    <div class="manual-actions">
+      <button class="gbtn amber" id="manualApply" type="submit">应用调整并复检</button>
+      <button class="gbtn" id="manualUndo" type="button" disabled>撤销上次调整</button>
+    </div>
+  </form>
+  <p id="manualFeedback" role="status" aria-live="polite">选择家具并输入移动距离或角度，应用后立即更新 3D 并重新检查布局。</p>
+</aside>
 
 <!-- 底部主卡 -->
 <div class="hero" id="hero">
@@ -436,6 +499,7 @@
 </div>
 
 <div class="crosshair" id="crosshair"></div>
+<div class="camera-help" id="cameraHelp">点击家具显示移动／旋转手柄<br>拖空白处旋转视图 · Shift＋左键平移视角</div>
 <div class="toast" id="toast"></div>
 
 <div class="loading" id="loading">
@@ -443,6 +507,7 @@
   <div class="txt" id="loadTxt">正在构建空间</div>
 </div>
 
+<script src="/scene-store.js"></script>
 <script src="/lib/three.min.js"></script>
 <script src="/lib/CopyShader.js"></script>
 <script src="/lib/LuminosityHighPassShader.js"></script>
@@ -466,6 +531,11 @@ let colliders = [], wallSegs = [], furnMeshes = [], furnGroups = {}, blobs = [],
 let IS_CUSTOM = false;
 let BB = { x0: 0, x1: 8.4, z0: 0, z1: 9.6 };
 let yaw = Math.PI, pitch = 0, keys = {}, glide = null, roam = false, homeY = EYE;
+let orbitTarget = null;
+let furnitureContacts = [], repairHighlight = null, repairBusy = false;
+const repairHistory = [];
+let selectedFurnitureId = null, furnitureGizmo = null, gizmoDrag = null;
+const furnitureRay = new THREE.Raycaster();
 let stepIdx = 0, itemIdx = 0, STEPS = [];
 let currentAnchor = null;
 
@@ -478,21 +548,7 @@ const state = {
   curtain: false,
 };
 
-/* ---------------------------------------------------------------- 一键修复表 */
-const FIX_MAP = {
-  "BED-M": { cx: 2.55, cy: 7.8, heading: 180 },
-  "BED-S": { cx: 6.8, cy: 8.58, heading: 270 },
-  "SOFA": { cx: 0.45, cy: 2.4, heading: 0 },
-  "SINK": { cx: 5.7, cy: 1.0 },
-  "MIRROR-bed1": { heading: 200 },
-  "MIRROR-entry": { heading: 60 },
-  "CAB-win": { cx: 1.6, cy: 1.3 },
-};
-const RULE_FIX = {
-  "FS-BED-001": ["BED-S"], "FS-BED-004": ["BED-S"], "FS-BED-005": ["BED-M"],
-  "FS-KIT-001": ["SINK"], "FS-BED-003": ["MIRROR-bed1"], "FS-GEN-002": ["MIRROR-entry"],
-  "FS-LIV-001": ["SOFA"], "FS-GEN-004": ["CAB-win"], "FS-ENT-001": null,
-};
+/* ---------------------------------------------------------------- 规则名称 */
 const RULE_SHORT = {
   "FS-BED-001": "床头靠实墙", "FS-BED-004": "避开横梁压床", "FS-BED-005": "床头离窗",
   "FS-KIT-001": "灶台水槽间距", "FS-BED-003": "床不对镜", "FS-GEN-002": "镜面避大门",
@@ -521,15 +577,15 @@ const RULE_SHOT = {
 /* ---------------------------------------------------------------- 家具风格 */
 const FURN_STYLES = {
   SOFA: [
-    { key: "fabric", name: "燕麦布艺沙发", len: 0.9, wid: 2.2, h: 0.62, color: 0xcfc4b2, rough: 1, metal: 0, arms: true },
+    { key: "fabric", name: "海蓝布艺沙发", len: 0.9, wid: 2.2, h: 0.62, color: 0x4388bc, rough: 1, metal: 0, arms: true },
     { key: "leather", name: "焦糖皮沙发", len: 0.95, wid: 2.2, h: 0.66, color: 0xa9713f, rough: 0.34, metal: 0.08, arms: true },
     { key: "mini", name: "陶土双人沙发", len: 0.85, wid: 1.4, h: 0.6, color: 0xc08064, rough: 1, metal: 0, arms: true },
     { key: "rattan", name: "藤编单椅", len: 0.8, wid: 0.9, h: 0.55, color: 0xc2a679, rough: 1, metal: 0, arms: false },
   ],
   BED: [
-    { key: "wood", name: "原木矮床", h: 0.5, color: 0xd9c9b4 },
-    { key: "cream", name: "奶油软包床", h: 0.35, color: 0xece3d4 },
-    { key: "walnut", name: "深胡桃床", h: 0.55, color: 0x8d6a4a },
+    { key: "wood", name: "原木矮床", h: 0.5, color: 0xd9c9b4, accent: 0x329b92 },
+    { key: "cream", name: "奶油软包床", h: 0.35, color: 0xece3d4, accent: 0x9275bd },
+    { key: "walnut", name: "深胡桃床", h: 0.55, color: 0x8d6a4a, accent: 0x447ea6 },
   ],
 };
 const EXTRA_FURN = [
@@ -760,19 +816,25 @@ function styleOf(f) {
   if (f.id === "BED-M" || f.id === "BED-S") return FURN_STYLES.BED.find(s => s.key === (f.styleKey || "wood"));
   return null;
 }
+const FURN_COLORS = {
+  bed: 0x329b92, crib: 0x9c82c7, sofa: 0x4388bc, wardrobe: 0x657baf,
+  nightstand: 0xd29a48, coffee: 0xc67a49, tv: 0x467b8e, cabinet: 0xb67957,
+  screen: 0x70a276, table: 0xd5a044, stove: 0xc76b55, sink: 0x4d9eb1,
+  fridge: 0x739ab4, toilet: 0x75b5c4, basin: 0x63aaa0, bathtub: 0x6b9ac8,
+  desk: 0xd59c58, bookshelf: 0xa078b2, shelf: 0xa078b2, chair: 0xc97588,
+  mirror: 0x8fc5dd, plant: 0x58a36b, washer: 0x6c9da9, altar: 0xb76751,
+  floorlamp: 0xe1b959, other: 0x8c8ebd,
+};
 function furnMat(f) {
   const st = styleOf(f);
   if (st) {
     const mat = new THREE.MeshStandardMaterial({
       color: st.color, roughness: st.rough != null ? st.rough : 0.9, metalness: st.metal || 0,
     });
-    if (f.type === "sofa" || f.type === "bed") mat.map = fabricTexture(st.color);
+    if (f.type === "sofa" || f.type === "bed") mat.map = fabricTexture(0xffffff);
     return mat;
   }
-  const colors = {
-    bed: 0xd9c9b4, sofa: 0xc9bda9, stove: 0xd8d2c8, sink: 0xdcdcd6,
-    mirror: 0xcfe0f0, wardrobe: 0x6b5236, other: 0xcfc0a8,
-  };
+  const colors = FURN_COLORS;
   if (f.type === "mirror") return new THREE.MeshStandardMaterial({ color: colors.mirror, transparent: true, opacity: 0.55, metalness: 0.6, roughness: 0.14 });
   return new THREE.MeshStandardMaterial({ color: colors[f.type] || colors.other, roughness: 0.85 });
 }
@@ -784,13 +846,16 @@ async function boot() {
   try {
     document.getElementById("loadTxt").textContent = "读取户型";
     const q = new URLSearchParams(location.search);
-    if (q.get("scene") === "local") {
+    if (q.get("scene") !== "demo") {
       try {
-        const raw = localStorage.getItem("immersehome.scene");
-        if (raw) { sceneData = JSON.parse(raw); IS_CUSTOM = true; }
+        const doc = SceneStore.restore();
+        if (doc) { sceneData = doc.updated; IS_CUSTOM = !!sceneData.meta?.custom; }
       } catch (e) { console.warn("自定义场景解析失败", e); }
     }
     if (!sceneData) sceneData = await (await fetch("/api/scene/demo_scene")).json();
+    if (sceneData.meta?.scale_estimated) { location.href="/plan?v=compare1"; return; }
+    const currentDoc = SceneStore.ensure(sceneData);
+    if (!currentDoc.baselineLocked) SceneStore.commit(sceneData, {lockBaseline:true});
 
     document.getElementById("loadTxt").textContent = "运行空间诊断";
     auditResult = await (await fetch("/api/audit", {
@@ -1410,13 +1475,14 @@ function buildOneFurniture(f) {
   const g = new THREE.Group();
   g.position.set(r.cx, 0, r.cy);
   g.rotation.y = -r.heading * Math.PI / 180;
+  g.userData.furnitureId = f.id;
 
   // 碰撞体：按朝向算旋转后的轴对齐包围盒，漫游时不会穿家具
   {
     const rad = r.heading * Math.PI / 180;
     const c = Math.abs(Math.cos(rad)), s = Math.abs(Math.sin(rad));
     const ex = (r.len * c + r.wid * s) / 2, ez = (r.len * s + r.wid * c) / 2;
-    colliders.push({ minX: r.cx - ex, maxX: r.cx + ex, minZ: r.cy - ez, maxZ: r.cy + ez });
+    colliders.push({ minX: r.cx - ex, maxX: r.cx + ex, minZ: r.cy - ez, maxZ: r.cy + ez, furn: true });
   }
 
   const mkBox = (w, hh, d, mat, x, y, z, rad) => {
@@ -1454,7 +1520,7 @@ function buildOneFurniture(f) {
     const pillow = new THREE.MeshStandardMaterial({ color: 0xfffdf6, roughness: 1 });
     [-1, 1].forEach(s => mkBox(0.32, 0.1, r.wid * 0.34, pillow, -r.len / 2 + 0.28, h + 0.03, s * r.wid * 0.22));
     mkBox(r.len * 0.52, 0.03, r.wid * 0.94,
-      new THREE.MeshStandardMaterial({ color: (style && style.color) || 0xd9c9b4, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: (style && style.accent) || FURN_COLORS.bed, roughness: 1 }),
       r.len * 0.2, h * 1.08, 0);
     // 床头柜
     const nwMat = new THREE.MeshStandardMaterial({ color: 0xa07c54, roughness: 0.68 });
@@ -1551,7 +1617,10 @@ function buildOneFurniture(f) {
 
   base.userData = { id: f.id, kind: "furn", name: f.name, rect: r, height: h, group: g };
   furnMeshes.push(base);
-  g.traverse(m => { if (m.isMesh) { m.castShadow = f.type !== "mirror"; m.receiveShadow = true; } });
+  g.traverse(m => { if (m.isMesh) {
+    m.castShadow = f.type !== "mirror"; m.receiveShadow = true;
+    m.userData.furnitureId = f.id;
+  } });
   scene.add(g);
   furnGroups[f.id] = g;
 
@@ -1559,7 +1628,11 @@ function buildOneFurniture(f) {
   const rad = r.heading * Math.PI / 180;
   const ex = (Math.abs(Math.cos(rad)) * r.len + Math.abs(Math.sin(rad)) * r.wid) / 2;
   const ez = (Math.abs(Math.sin(rad)) * r.len + Math.abs(Math.cos(rad)) * r.wid) / 2;
-  if (f.type !== "floorlamp") addContact(r.cx, r.cy, ex * 2.5 + 0.3, ez * 2.5 + 0.3);
+  if (f.type !== "floorlamp") {
+    const contact = addContact(r.cx, r.cy, ex * 2.5 + 0.3, ez * 2.5 + 0.3);
+    contact.userData.furnitureId = f.id;
+    furnitureContacts.push(contact);
+  }
 
   if (f.type !== "mirror" && f.type !== "floorlamp") {
     let cx2 = ex, cz2 = ez;
@@ -1572,6 +1645,9 @@ function buildOneFurniture(f) {
 }
 
 function rebuildFurniture() {
+  clearRepairHighlight();
+  furnitureContacts.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose(); });
+  furnitureContacts = [];
   Object.values(furnGroups).forEach(g => {
     g.traverse(m => {
       if (m.isMesh && m.material && m.material.dispose && !Object.values(MAT).includes(m.material)) m.material.dispose();
@@ -1582,6 +1658,7 @@ function rebuildFurniture() {
   furnMeshes = furnMeshes.filter(m => m.userData.kind === "beam");
   colliders = colliders.filter(c => !c.furn);
   (sceneData.furniture || []).forEach(f => buildOneFurniture(f));
+  syncFurnitureGizmo();
 }
 
 /* ============================================================================
@@ -2006,7 +2083,7 @@ function renderItemCard() {
   const v = st.items[itemIdx];
   if (!v) { hideCard(); return; }
   const card = document.getElementById("card");
-  const fixIds = RULE_FIX[v.rule_id];
+  const canFix = repairableViolation(v);
   const isStruct = v.rule_id === "FS-ENT-001";
   const labels = (v.object_labels || []).join(" · ");
 
@@ -2033,9 +2110,10 @@ function renderItemCard() {
       ? (state.curtain
         ? `<button type="button" class="gbtn" disabled>已挂门帘化解</button>`
         : `<button type="button" class="gbtn amber" data-act="curtain">挂门帘化解</button>`)
-      : (fixIds && fixIds.length
+      : (canFix
         ? `<button type="button" class="gbtn amber" data-act="fix">一键修复</button>`
         : `<button type="button" class="gbtn" disabled>需结构调整</button>`)}
+      <button type="button" class="gbtn" data-act="manual">手动修复</button>
     </div>`;
 
   card.querySelectorAll("[data-nav]").forEach(b => b.addEventListener("click", () => {
@@ -2049,6 +2127,7 @@ function renderItemCard() {
   card.querySelector("[data-act=locate]")?.addEventListener("click", () => glideShot(shotForItem(v), false, true));
   card.querySelector("[data-act=fix]")?.addEventListener("click", () => fixOne(v.rule_id));
   card.querySelector("[data-act=curtain]")?.addEventListener("click", applyCurtain);
+  card.querySelector("[data-act=manual]")?.addEventListener("click", () => openManualRepair(v));
 
   card.classList.add("show");
   requestAnimationFrame(() => drawPlan(v));
@@ -2063,18 +2142,14 @@ function renderPlanCard() {
 
   let rows = "";
   fixedRules.forEach(rid => {
-    const fids = RULE_FIX[rid] || [];
-    const names = fids.map(id => {
-      const f = (sceneData.furniture || []).find(x => x.id === id);
-      return f ? f.name : id;
-    }).join("、");
+    const names = "";
     rows += `<div class="fixrow"><span class="ok">✓</span><span><b>${RULE_SHORT[rid] || rid}</b>${names ? " · " + names : ""}</span></div>`;
   });
   if (state.curtain) {
     rows += `<div class="fixrow"><span class="ok">✓</span><span><b>大门对卫生间门</b> · 已挂门帘化解视线直冲</span></div>`;
   }
 
-  const fixable = auditResult.violations.filter(v => RULE_FIX[v.rule_id] && RULE_FIX[v.rule_id].length).length;
+  const fixable = auditResult.violations.filter(repairableViolation).length;
   const remaining = auditResult.violations;
 
   card.innerHTML = `
@@ -2096,11 +2171,13 @@ function renderPlanCard() {
       : `<div class="fixrow"><span style="color:var(--amber-2)">✦</span><span>全部通过，居住能量场和谐流通。</span></div>`}
     <div class="card-acts">
       <button type="button" class="gbtn amber" data-act="fixall" ${fixable ? "" : "disabled"}>
-        ${fixable ? `一键修复 ${fixable} 项` : "已全部修复"}
+        ${fixable ? `尝试修复 ${fixable} 项` : (cur ? "剩余项需手动或结构调整" : "已全部通过")}
       </button>
+      <button type="button" class="gbtn" data-act="manual">手动修复</button>
     </div>`;
 
   card.querySelector("[data-act=fixall]")?.addEventListener("click", fixAll);
+  card.querySelector("[data-act=manual]")?.addEventListener("click", () => openManualRepair());
   card.classList.add("show");
 }
 
@@ -2115,9 +2192,10 @@ function drawPlan(v) {
   g.scale(dpr, dpr);
 
   const pad = 12;
-  const s = Math.min((W - pad * 2) / 8.4, (H - pad * 2) / 9.6);
-  const ox = (W - 8.4 * s) / 2, oy = (H - 9.6 * s) / 2;
-  const X = x => ox + x * s, Y = z => oy + (9.6 - z) * s;
+  const dx = Math.max(.1, BB.x1 - BB.x0), dz = Math.max(.1, BB.z1 - BB.z0);
+  const s = Math.min((W - pad * 2) / dx, (H - pad * 2) / dz);
+  const ox = (W - dx * s) / 2, oy = (H - dz * s) / 2;
+  const X = x => ox + (x - BB.x0) * s, Y = z => oy + (BB.z1 - z) * s;
 
   g.clearRect(0, 0, W, H);
 
@@ -2314,6 +2392,8 @@ function glideShot(shot, instant, keepStep) {
   const pos = new THREE.Vector3(shot.pos[0], shot.y || EYE, shot.pos[1]);
   homeY = pos.y;
   const look = new THREE.Vector3(shot.look[0], shot.look[1], shot.look[2]);
+  orbitTarget = shot.doll ? look.clone() : null;
+  syncFurnitureGizmo();
   if (ceilMesh) ceilMesh.visible = !shot.doll;
   if (skyMesh) skyMesh.visible = !shot.doll;
   scene.background = new THREE.Color(shot.doll ? 0x1b1510 : 0xd8c8ae);
@@ -2333,40 +2413,344 @@ function glideShot(shot, instant, keepStep) {
 /* ============================================================================
    修复
    ========================================================================== */
-function applyFix(fid) {
-  const f = (sceneData.furniture || []).find(x => x.id === fid);
-  const fx = FIX_MAP[fid];
-  if (!f || !fx) return null;
-  Object.assign(f.rect, fx);
-  if (fid === "SOFA" && fx.heading === 0) f.rect.cx = f.rect.len / 2;
-  return f;
+function repairableViolation(v) {
+  return (sceneData.furniture || []).some(f => (v.objects || []).includes(f.id));
 }
-
-async function fixOne(ruleId) {
-  const v = auditResult.violations.find(x => x.rule_id === ruleId);
-  const fids = RULE_FIX[ruleId];
-  if (!v || !fids || !fids.length) return;
-  fids.forEach(applyFix);
-  rebuildFurniture();
-  await reaudit();
-  fixedRules.add(ruleId);
-  showToast("已修复：" + v.name);
-  if (stepIdx === 3) renderPlanCard(); else renderItemCard();
-  renderHero();
-  buildBlobs(STEPS[stepIdx].items.length ? STEPS[stepIdx].items : auditResult.violations);
-}
-
-async function fixAll() {
-  const fixable = auditResult.violations.filter(v => RULE_FIX[v.rule_id] && RULE_FIX[v.rule_id].length);
-  if (!fixable.length) { showToast("没有可自动修复的问题"); return; }
-  fixable.forEach(v => {
-    fixedRules.add(v.rule_id);
-    RULE_FIX[v.rule_id].forEach(applyFix);
+function cloneData(value) { return JSON.parse(JSON.stringify(value)); }
+function setRepairBusy(busy) {
+  repairBusy = busy;
+  document.querySelectorAll("[data-act=fix],[data-act=fixall],#manualApply,#manualUndo,#manualFurniture,#manualSide,#manualDepth,#manualTurn,#clearFurnitureSelection,#floorPlanBtn").forEach(b => {
+    b.disabled = busy || (b.id === "manualUndo" && !repairHistory.length) ||
+      (b.dataset.act === "fixall" && !auditResult.violations.some(repairableViolation));
   });
-  rebuildFurniture();
-  await reaudit();
-  applyStep(3);
-  showToast(`已完成 ${fixable.length} 项修复，复检剩 ${auditResult.summary.violations} 项`);
+}
+function clearRepairHighlight() {
+  if (!repairHighlight) return;
+  scene.remove(repairHighlight); repairHighlight.geometry.dispose(); repairHighlight.material.dispose();
+  repairHighlight = null;
+}
+function highlightFurniture(id) {
+  selectedFurnitureId = furnGroups[id] ? id : null;
+  clearRepairHighlight();
+  if (!furnGroups[id]) { syncFurnitureGizmo(); return; }
+  repairHighlight = new THREE.BoxHelper(furnGroups[id], 0xffcf72);
+  repairHighlight.material.depthTest = false; repairHighlight.renderOrder = 50;
+  scene.add(repairHighlight);
+  syncFurnitureGizmo();
+}
+
+function canTransformFurniture() { return !roam && !!orbitTarget; }
+function destroyFurnitureGizmo() {
+  if (!furnitureGizmo) return;
+  scene.remove(furnitureGizmo);
+  furnitureGizmo.traverse(m => { if (m.isMesh) { m.geometry.dispose(); m.material.dispose(); } });
+  furnitureGizmo = null;
+}
+function makeFurnitureGizmo() {
+  const group = new THREE.Group();
+  const add = (geometry, color, action, position, rotation) => {
+    const material = new THREE.MeshBasicMaterial({color, depthTest: false, depthWrite: false,
+      transparent: true, opacity: 0.96, side: THREE.DoubleSide});
+    const mesh = new THREE.Mesh(geometry, material);
+    if (position) mesh.position.set(...position);
+    if (rotation) mesh.rotation.set(...rotation);
+    mesh.userData.transformAction = action; mesh.renderOrder = 100;
+    group.add(mesh); return mesh;
+  };
+  add(new THREE.BoxGeometry(.28, .05, .28), 0x79debc, "plane", [0, 0, 0]);
+  add(new THREE.CylinderGeometry(.045, .045, 1.05, 10), 0xf7796c, "x", [.82, 0, 0], [0, 0, -Math.PI / 2]);
+  add(new THREE.ConeGeometry(.13, .3, 12), 0xf7796c, "x", [1.49, 0, 0], [0, 0, -Math.PI / 2]);
+  add(new THREE.CylinderGeometry(.045, .045, 1.05, 10), 0x78b6ff, "z", [0, 0, .82], [Math.PI / 2, 0, 0]);
+  add(new THREE.ConeGeometry(.13, .3, 12), 0x78b6ff, "z", [0, 0, 1.49], [Math.PI / 2, 0, 0]);
+  add(new THREE.TorusGeometry(1.08, .035, 10, 80), 0xffcf72, "rotate", [0, -.025, 0], [Math.PI / 2, 0, 0]);
+  add(new THREE.SphereGeometry(.10, 12, 8), 0xffcf72, "rotate", [-.764, 0, .764]);
+  // 透明的拾取范围让小屏幕上的箭头和圆环也容易点中。
+  const ringHit = add(new THREE.TorusGeometry(1.08, .085, 8, 64), 0xffcf72, "rotate", [0, -.025, 0], [Math.PI / 2, 0, 0]);
+  ringHit.material.opacity = 0;
+  scene.add(group); return group;
+}
+function syncFurnitureGizmo() {
+  const f = sceneData?.furniture?.find(x => x.id === selectedFurnitureId);
+  const show = !!f && !!furnGroups[f.id] && canTransformFurniture();
+  document.getElementById("transformHint").hidden = !show;
+  if (!show) { if (furnitureGizmo) furnitureGizmo.visible = false; return; }
+  if (!furnitureGizmo) furnitureGizmo = makeFurnitureGizmo();
+  furnitureGizmo.visible = true;
+  const r = gizmoDrag?.preview || f.rect;
+  furnitureGizmo.position.set(r.cx, Math.max(.65, (f.height || .6) + .22), r.cy);
+  const distance = camera.position.distanceTo(furnitureGizmo.position);
+  const scale = Math.max(.35, 2 * distance * Math.tan(camera.fov * Math.PI / 360) * 66 / Math.max(1, renderer.domElement.clientHeight));
+  furnitureGizmo.scale.setScalar(scale);
+  furnitureGizmo.updateMatrixWorld(true);
+  document.getElementById("transformName").textContent = f.name + " · 家具操作";
+}
+function clearFurnitureSelection() {
+  if (gizmoDrag) cancelFurnitureDrag();
+  selectedFurnitureId = null; clearRepairHighlight(); destroyFurnitureGizmo();
+  document.getElementById("transformHint").hidden = true;
+  document.getElementById("manualFurniture").value = "";
+  document.getElementById("manualCurrent").textContent = "请选择家具，或在总览中点击家具。";
+  document.getElementById("manualApply").disabled = true;
+}
+function furniturePointerRay(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  camera.updateMatrixWorld(true);
+  furnitureRay.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
+    -(event.clientY - rect.top) / rect.height * 2 + 1), camera);
+  return furnitureRay;
+}
+function pickFurnitureHandle(event) {
+  if (!furnitureGizmo?.visible || !canTransformFurniture()) return null;
+  syncFurnitureGizmo();
+  return furniturePointerRay(event).intersectObjects(furnitureGizmo.children, false)[0]?.object.userData.transformAction || null;
+}
+function pickFurniture(event) {
+  if (!canTransformFurniture()) return null;
+  Object.values(furnGroups).forEach(g => g.updateMatrixWorld(true));
+  const hit = furniturePointerRay(event).intersectObjects(Object.values(furnGroups), true)[0];
+  return hit?.object.userData.furnitureId || null;
+}
+function beginFurnitureDrag(event, action) {
+  if (repairBusy) { showToast("正在复检，请稍候"); return false; }
+  const f = sceneData.furniture.find(x => x.id === selectedFurnitureId);
+  if (!f || !furnitureGizmo) return false;
+  const pivot = furnitureGizmo.position.clone();
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -pivot.y);
+  const point = furniturePointerRay(event).ray.intersectPlane(plane, new THREE.Vector3());
+  if (!point) return false;
+  gizmoDrag = {id: f.id, action, original: {...f.rect}, preview: {...f.rect}, plane, pivot,
+    start: point.clone(), lastAngle: Math.atan2(point.z - pivot.z, point.x - pivot.x), angle: 0, turn: 0};
+  glide = null;
+  document.getElementById("transformValue").textContent = "正在预览；松开鼠标后复检，Esc 取消。";
+  return true;
+}
+function previewFurnitureDrag(event) {
+  const drag = gizmoDrag;
+  if (!drag) return;
+  const point = furniturePointerRay(event).ray.intersectPlane(drag.plane, new THREE.Vector3());
+  if (!point) return;
+  const r = {...drag.original};
+  if (drag.action === "rotate") {
+    const angle = Math.atan2(point.z - drag.pivot.z, point.x - drag.pivot.x);
+    drag.angle += Math.atan2(Math.sin(angle - drag.lastAngle), Math.cos(angle - drag.lastAngle));
+    drag.lastAngle = angle;
+    const step = event.altKey ? 1 : 15;
+    drag.turn = Math.round(-drag.angle * 180 / Math.PI / step) * step;
+    r.heading = ((r.heading + drag.turn) % 360 + 360) % 360;
+  } else {
+    const snap = value => Math.round(value * (event.altKey ? 1000 : 100)) / (event.altKey ? 1000 : 100);
+    if (drag.action !== "z") r.cx += snap(point.x - drag.start.x);
+    if (drag.action !== "x") r.cy += snap(point.z - drag.start.z);
+  }
+  drag.preview = r;
+  const group = furnGroups[drag.id];
+  group.position.set(r.cx, 0, r.cy); group.rotation.y = -r.heading * Math.PI / 180;
+  const contact = furnitureContacts.find(m => m.userData.furnitureId === drag.id);
+  if (contact) { contact.position.x = r.cx; contact.position.z = r.cy; }
+  group.updateMatrixWorld(true); repairHighlight?.update(); syncFurnitureGizmo();
+  document.getElementById("manualCurrent").textContent = `预览：X ${r.cx.toFixed(2)} m · Y ${r.cy.toFixed(2)} m · 朝向 ${r.heading}°`;
+  document.getElementById("transformValue").textContent = `平移 ${Math.hypot(r.cx-drag.original.cx, r.cy-drag.original.cy).toFixed(2)} m · 旋转 ${drag.turn}°；松开后复检。`;
+}
+function restoreFurniturePreview(drag) {
+  const group = furnGroups[drag.id];
+  if (group) {
+    group.position.set(drag.original.cx, 0, drag.original.cy);
+    group.rotation.y = -drag.original.heading * Math.PI / 180; group.updateMatrixWorld(true);
+  }
+  const contact = furnitureContacts.find(m => m.userData.furnitureId === drag.id);
+  if (contact) { contact.position.x = drag.original.cx; contact.position.z = drag.original.cy; }
+  repairHighlight?.update(); syncFurnitureGizmo(); updateManualSelection();
+}
+function cancelFurnitureDrag() {
+  const drag = gizmoDrag;
+  if (!drag) return;
+  gizmoDrag = null; restoreFurniturePreview(drag);
+  document.getElementById("transformValue").textContent = "已取消本次拖动，家具保持原位置。";
+}
+async function finishFurnitureDrag() {
+  const drag = gizmoDrag;
+  if (!drag) return;
+  gizmoDrag = null;
+  const dx = drag.preview.cx - drag.original.cx, dz = drag.preview.cy - drag.original.cy;
+  if (Math.hypot(dx, dz) < .005 && Math.abs(drag.turn) < .5) { restoreFurniturePreview(drag); return; }
+  const before = cloneData(sceneData), previousAudit = cloneData(auditResult);
+  setRepairBusy(true);
+  document.getElementById("transformValue").textContent = "正在复检并保存家具调整…";
+  try {
+    const result = await requestRepair({mode: "manual", furniture_id: drag.id, dx, dz, turn: drag.turn});
+    applyRepairResult(result, before, previousAudit);
+    document.getElementById("manualFurniture").value = drag.id;
+    updateManualSelection();
+    ["manualSide", "manualDepth", "manualTurn"].forEach(id => document.getElementById(id).value = "0");
+    const message = `已移动 ${Math.hypot(dx,dz).toFixed(2)} m、旋转 ${drag.turn}°；复检剩余 ${result.audit.summary.violations} 项。`;
+    document.getElementById("manualFeedback").textContent = message;
+    document.getElementById("transformValue").textContent = message; showToast(message);
+  } catch (error) {
+    restoreFurniturePreview(drag);
+    const message = error.message + " 已恢复原位置。";
+    document.getElementById("manualFeedback").textContent = message;
+    document.getElementById("transformValue").textContent = message; showToast(message);
+  } finally { setRepairBusy(false); syncFurnitureGizmo(); }
+}
+function saveAdjustedScene(before) {
+  try {
+    const originalDoc = SceneStore.ensure(before);
+    if (!originalDoc.baselineLocked) SceneStore.commit(before, {lockBaseline:true});
+    sceneData.meta = {...sceneData.meta, document_id: before.meta.document_id};
+    SceneStore.commit(sceneData, {lockBaseline: true});
+    if (typeof history !== "undefined") history.replaceState(null, "", "/3d?scene=local");
+    // 编辑器的像素坐标与 3D 米坐标同时保存，返回修改户型时不回退家具位置。
+    const raw = localStorage.getItem("immersehome.plan");
+    if (!raw || !before.meta?.custom || !before.furniture?.length) return;
+    const draft = JSON.parse(raw), ppm = draft.pxPerM;
+    if (!ppm || draft.furn?.length !== before.furniture.length) return;
+    const anchor = before.furniture.find(f => f.id === "F-0");
+    if (!anchor) return;
+    const ox = draft.furn[0].cx + anchor.rect.cx * ppm;
+    const oy = draft.furn[0].cy + anchor.rect.cy * ppm;
+    if (!before.furniture.every((f, i) => f.id === "F-" + i &&
+      Math.abs(draft.furn[i].cx + f.rect.cx * ppm - ox) < ppm * .02 &&
+      Math.abs(draft.furn[i].cy + f.rect.cy * ppm - oy) < ppm * .02)) return;
+    sceneData.furniture.forEach((f, i) => {
+      const target = draft.furn[i];
+      Object.assign(target, { cx: ox - f.rect.cx * ppm, cy: oy - f.rect.cy * ppm,
+        heading: ((180 - f.rect.heading) % 360 + 360) % 360 });
+    });
+    localStorage.setItem("immersehome.plan", JSON.stringify(draft));
+  } catch (error) { showToast("本次调整已生效，但浏览器存储已满，刷新后可能无法保留"); }
+}
+function acceptAudit(result) {
+  auditResult = result;
+  const cur = new Set(result.violations.map(v => v.rule_id));
+  Array.from(fixedRules).forEach(rid => { if (cur.has(rid)) fixedRules.delete(rid); });
+  const m = window.__meta || (window.__meta = {});
+  m.total = result.violations.length; m.high = result.summary.by_severity.high || 0;
+  m.bed = result.violations.filter(v => v.rule_id.startsWith("FS-BED")).length;
+  m.flow = result.violations.length - m.bed;
+  if (STEPS.length) {
+    STEPS[0].items = result.violations;
+    STEPS[1].items = result.violations.filter(v => v.rule_id.startsWith("FS-BED"));
+    STEPS[2].items = result.violations.filter(v => !v.rule_id.startsWith("FS-BED"));
+    itemIdx = Math.max(0, Math.min(itemIdx, STEPS[stepIdx].items.length - 1));
+  }
+}
+function refreshRepairViews() {
+  if (!STEPS.length) return;
+  if (stepIdx === 3) renderPlanCard();
+  else if (stepIdx !== 0) renderItemCard();
+  renderHero(); buildRoomBar();
+  buildBlobs(stepIdx === 3 ? auditResult.violations : STEPS[stepIdx].items);
+}
+async function requestRepair(payload) {
+  const response = await fetch("/api/repair", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({scene: sceneData, ...payload})});
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "调整服务暂时不可用");
+  return result;
+}
+function applyRepairResult(result, before, previousAudit) {
+  if (!result.changes?.length) return false;
+  repairHistory.push({scene: before, audit: previousAudit});
+  if (repairHistory.length > 20) repairHistory.shift();
+  sceneData = result.scene;
+  acceptAudit(result.audit);
+  const remaining = new Set(result.audit.violations.map(v => v.rule_id));
+  previousAudit.violations.forEach(v => { if (!remaining.has(v.rule_id)) fixedRules.add(v.rule_id); });
+  rebuildFurniture(); saveAdjustedScene(before); refreshRepairViews();
+  const id = result.changes[result.changes.length - 1].id;
+  highlightFurniture(id);
+  if (!document.getElementById("manualPanel").hidden) {
+    document.getElementById("manualFurniture").value = id;
+    updateManualSelection();
+  }
+  document.getElementById("manualUndo").disabled = false;
+  return true;
+}
+async function autoRepair(ruleId) {
+  if (repairBusy) return;
+  const before = cloneData(sceneData), previousAudit = cloneData(auditResult);
+  setRepairBusy(true); showToast("正在根据当前户型计算可行摆位并复检…");
+  try {
+    const result = await requestRepair({mode: "auto", rule_id: ruleId || null});
+    if (applyRepairResult(result, before, previousAudit)) {
+      const names = [...new Set(result.changes.map(c => c.name))].join("、");
+      const resolved = previousAudit.violations.filter(v => !result.audit.violations.some(x => x.rule_id === v.rule_id)).length;
+      const message = `已调整${names}；复检消除 ${resolved} 项，剩余 ${result.audit.summary.violations} 项`;
+      document.getElementById("manualFeedback").textContent = message;
+      showToast(message);
+    } else { showToast(result.message); document.getElementById("manualFeedback").textContent = result.message; }
+  } catch (error) { showToast(error.message); }
+  finally { setRepairBusy(false); }
+}
+async function fixOne(ruleId) { return autoRepair(ruleId); }
+async function fixAll() { return autoRepair(); }
+
+function openManualRepair(violation) {
+  keys = {};
+  if (roam) toggleRoam();
+  const panel = document.getElementById("manualPanel"), select = document.getElementById("manualFurniture");
+  const current = select.value;
+  select.innerHTML = "";
+  (sceneData.furniture || []).forEach(f => {
+    const option = document.createElement("option"); option.value = f.id; option.textContent = f.name;
+    select.appendChild(option);
+  });
+  const preferred = violation && (sceneData.furniture || []).find(f => violation.objects?.includes(f.id));
+  select.value = preferred?.id || ((sceneData.furniture || []).some(f => f.id === current) ? current : sceneData.furniture?.[0]?.id || "");
+  panel.hidden = false;
+  document.getElementById("manualUndo").disabled = !repairHistory.length;
+  updateManualSelection();
+}
+function updateManualSelection() {
+  const id = document.getElementById("manualFurniture").value;
+  if (id !== selectedFurnitureId) {
+    ["manualSide", "manualDepth", "manualTurn"].forEach(id => document.getElementById(id).value = "0");
+  }
+  const f = (sceneData.furniture || []).find(x => x.id === id);
+  document.getElementById("manualCurrent").textContent = f
+    ? `当前位置：X ${f.rect.cx.toFixed(2)} m · Y ${f.rect.cy.toFixed(2)} m · 朝向 ${f.rect.heading}°`
+    : "当前户型还没有家具，请先在户型编辑器中添加。";
+  document.getElementById("manualApply").disabled = !f || repairBusy;
+  highlightFurniture(id);
+}
+async function applyManualRepair() {
+  if (repairBusy || gizmoDrag) return;
+  const sideText = document.getElementById("manualSide").value;
+  const depthText = document.getElementById("manualDepth").value;
+  const turnText = document.getElementById("manualTurn").value;
+  const side = Number(sideText), depth = Number(depthText), turn = Number(turnText);
+  if ([sideText, depthText, turnText].some(v => !v.trim()) || ![side, depth, turn].every(Number.isFinite)) {
+    document.getElementById("manualFeedback").textContent = "请填写有效的移动距离和角度；不调整的方向填 0。"; return;
+  }
+  const id = document.getElementById("manualFurniture").value;
+  const before = cloneData(sceneData), previousAudit = cloneData(auditResult);
+  camera.updateMatrixWorld(true);
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  right.y = 0; right.normalize();
+  const forward = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), right).normalize();
+  const move = right.multiplyScalar(side).add(forward.multiplyScalar(depth));
+  setRepairBusy(true);
+  document.getElementById("manualFeedback").textContent = "正在应用调整并复检…";
+  try {
+    const result = await requestRepair({mode: "manual", furniture_id: id, dx: move.x, dz: move.z, turn});
+    if (applyRepairResult(result, before, previousAudit)) {
+      const change = result.changes[0];
+      const message = `${change.name}已平移 ${Math.hypot(move.x, move.z).toFixed(2)} m，旋转 ${turn}°；复检剩余 ${result.audit.summary.violations} 项。`;
+      document.getElementById("manualFeedback").textContent = message;
+      ["manualSide", "manualDepth", "manualTurn"].forEach(id => document.getElementById(id).value = "0");
+      updateManualSelection(); showToast(message);
+    }
+  } catch (error) { document.getElementById("manualFeedback").textContent = error.message; showToast(error.message); }
+  finally { setRepairBusy(false); }
+}
+function undoFurnitureRepair() {
+  if (repairBusy || gizmoDrag || !repairHistory.length) return;
+  const before = cloneData(sceneData), previous = repairHistory.pop();
+  sceneData = previous.scene; acceptAudit(previous.audit);
+  rebuildFurniture(); saveAdjustedScene(before); refreshRepairViews(); updateManualSelection();
+  document.getElementById("manualUndo").disabled = !repairHistory.length;
+  document.getElementById("manualFeedback").textContent = "已撤销上次调整，家具位置与复检结果均已恢复。";
+  showToast("已撤销上次家具调整");
 }
 
 function applyCurtain() {
@@ -2399,19 +2783,7 @@ async function reaudit() {
       body: JSON.stringify(sceneData),
     });
     if (!r.ok) throw new Error("HTTP " + r.status);
-    auditResult = await r.json();
-    const cur = new Set(auditResult.violations.map(v => v.rule_id));
-    Array.from(fixedRules).forEach(rid => { if (cur.has(rid)) fixedRules.delete(rid); });
-    const m = window.__meta;
-    m.total = auditResult.violations.length;
-    m.high = auditResult.summary.by_severity.high || 0;
-    m.bed = auditResult.violations.filter(v => v.rule_id.indexOf("FS-BED") === 0).length;
-    m.flow = auditResult.violations.length - m.bed;
-    if (STEPS.length) {
-      STEPS[1].items = auditResult.violations.filter(v => v.rule_id.indexOf("FS-BED") === 0);
-      STEPS[2].items = auditResult.violations.filter(v => v.rule_id.indexOf("FS-BED") !== 0);
-      STEPS[0].items = auditResult.violations;
-    }
+    acceptAudit(await r.json());
   } catch (e) {
     showToast("诊断服务暂时不可用，改动已保留");
   }
@@ -2422,11 +2794,20 @@ async function reaudit() {
    ========================================================================== */
 function bindInput() {
   addEventListener("keydown", e => {
+    if (e.code === "Escape" && gizmoDrag) { e.preventDefault(); cancelFurnitureDrag(); return; }
+    if (e.target.closest?.("input,select,textarea,button")) return;
+    if (e.code === "Escape" && selectedFurnitureId && canTransformFurniture()) {
+      clearFurnitureSelection(); return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ" && canTransformFurniture()) {
+      e.preventDefault(); undoFurnitureRepair(); return;
+    }
     keys[e.code] = true;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) e.preventDefault();
     if (e.code === "Escape" && roam) toggleRoam();
   });
   addEventListener("keyup", e => keys[e.code] = false);
+  addEventListener("blur", () => { keys = {}; });
 
   document.getElementById("swipe").addEventListener("click", () => {
     if (stepIdx === STEPS.length - 1) applyStep(0); else nextStep();
@@ -2434,7 +2815,7 @@ function bindInput() {
 
   let wheelLock = 0;
   addEventListener("wheel", e => {
-    if (roam) return;
+    if (roam || gizmoDrag || e.target.closest?.(".manual-panel")) return;
     const now = Date.now();
     if (now - wheelLock < 900) return;
     if (e.deltaY > 22) { wheelLock = now; nextStep(); }
@@ -2442,19 +2823,90 @@ function bindInput() {
   }, { passive: true });
 
   document.getElementById("roamBtn").addEventListener("click", toggleRoam);
+  document.getElementById("manualRepairBtn").addEventListener("click", () => openManualRepair());
+  document.getElementById("manualClose").addEventListener("click", () => {
+    document.getElementById("manualPanel").hidden = true; clearRepairHighlight();
+  });
+  document.getElementById("manualFurniture").addEventListener("change", updateManualSelection);
+  document.getElementById("manualForm").addEventListener("submit", e => { e.preventDefault(); applyManualRepair(); });
+  document.getElementById("manualUndo").addEventListener("click", undoFurnitureRepair);
+  document.getElementById("floorPlanBtn").addEventListener("click", () => {
+    if (repairBusy || gizmoDrag) { showToast("请先完成当前家具调整"); return; }
+    SceneStore.ensure(sceneData);
+    location.href = "/?scene=local&version=after&v=compare1";
+  });
+  document.getElementById("clearFurnitureSelection").addEventListener("click", clearFurnitureSelection);
+  document.getElementById("resetViewBtn").addEventListener("click", () => {
+    if (roam) toggleRoam();
+    applyStep(0, true);
+  });
 
-  // 拖拽环视
-  let dragging = false, lx = 0, ly = 0;
+  // 总览围绕户型旋转；Shift 拖拽沿屏幕平面移动相机和旋转中心。
+  let dragging = false, lx = 0, ly = 0, press = null;
   const dom = renderer.domElement;
-  dom.addEventListener("mousedown", e => { dragging = true; lx = e.clientX; ly = e.clientY; dom.style.cursor = "grabbing"; });
-  addEventListener("mousemove", e => {
-    if (!dragging || glide) return;
-    yaw -= (e.clientX - lx) * 0.0032;
-    pitch -= (e.clientY - ly) * 0.0028;
-    pitch = Math.max(-1.2, Math.min(1.2, pitch));
+  dom.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); dom.setPointerCapture(e.pointerId);
+    press = {x: e.clientX, y: e.clientY, background: false};
+    if (!e.shiftKey && canTransformFurniture()) {
+      if (repairBusy) { showToast("正在复检，请稍候再操作家具"); return; }
+      const action = pickFurnitureHandle(e);
+      if (action && beginFurnitureDrag(e, action)) { dom.style.cursor = "grabbing"; return; }
+      const id = pickFurniture(e);
+      if (id) openManualRepair({objects: [id]});
+      else press.background = true;
+    }
+    glide = null;
+    yaw = camera.rotation.y; pitch = camera.rotation.x;
+    homeY = camera.position.y;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    dom.style.cursor = e.shiftKey && !roam ? "move" : "grabbing";
+  });
+  dom.addEventListener("pointermove", e => {
+    if (gizmoDrag) { previewFurnitureDrag(e); return; }
+    if (!dragging) {
+      if (!repairBusy && canTransformFurniture()) {
+        const action = pickFurnitureHandle(e);
+        dom.style.cursor = action ? (action === "rotate" ? "grab" : "move") : (pickFurniture(e) ? "pointer" : "grab");
+      }
+      return;
+    }
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    if (e.shiftKey && !roam) {
+      camera.updateMatrixWorld(true);
+      const distance = orbitTarget ? camera.position.distanceTo(orbitTarget) : Math.max(3, camera.position.y);
+      const scale = 2 * distance * Math.tan(camera.fov * Math.PI / 360) / dom.clientHeight;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const offset = right.multiplyScalar(-dx * scale).add(up.multiplyScalar(dy * scale));
+      camera.position.add(offset);
+      if (orbitTarget) orbitTarget.add(offset);
+      homeY = camera.position.y; dom.style.cursor = "move";
+    } else if (orbitTarget && !roam) {
+      const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(orbitTarget));
+      spherical.theta -= dx * 0.006;
+      spherical.phi = THREE.MathUtils.clamp(spherical.phi - dy * 0.006, 0.12, Math.PI / 2 - 0.06);
+      camera.position.copy(new THREE.Vector3().setFromSpherical(spherical).add(orbitTarget));
+      camera.lookAt(orbitTarget);
+      yaw = camera.rotation.y; pitch = camera.rotation.x; homeY = camera.position.y;
+      dom.style.cursor = "grabbing";
+    } else {
+      yaw -= dx * 0.0032; pitch -= dy * 0.0028;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+      dom.style.cursor = "grabbing";
+    }
     lx = e.clientX; ly = e.clientY;
   });
-  addEventListener("mouseup", () => { dragging = false; dom.style.cursor = ""; });
+  const endDrag = () => { dragging = false; press = null; dom.style.cursor = ""; };
+  dom.addEventListener("pointerup", e => {
+    if (gizmoDrag) { finishFurnitureDrag(); endDrag(); return; }
+    if (press?.background && Math.hypot(e.clientX-press.x, e.clientY-press.y) < 4) clearFurnitureSelection();
+    endDrag();
+  });
+  const cancelDrag = () => { cancelFurnitureDrag(); endDrag(); };
+  dom.addEventListener("pointercancel", cancelDrag);
+  dom.addEventListener("lostpointercapture", cancelDrag);
+  addEventListener("blur", cancelDrag);
 }
 
 function toggleRoam() {
@@ -2463,6 +2915,9 @@ function toggleRoam() {
     homeY = EYE;
     if (ceilMesh) ceilMesh.visible = true;
     glide = null;
+    orbitTarget = null;
+    if (gizmoDrag) cancelFurnitureDrag();
+    syncFurnitureGizmo();
     spawnForRoam();   // 关键：不管刚才相机在哪，进屋落到门口/中心，面向屋内
   } else {
     applyStep(stepIdx, true);  // 退出漫游时回到当前诊断机位，而不是飘在半空
@@ -2471,6 +2926,9 @@ function toggleRoam() {
   document.getElementById("roamBtn").textContent = roam ? "退出漫游" : "自由漫游";
   document.getElementById("crosshair").classList.toggle("show", roam);
   document.getElementById("rail").style.opacity = roam ? ".25" : "1";
+  document.getElementById("cameraHelp").innerHTML = roam
+    ? "WASD 移动 · 左键拖动环视 · Esc 退出<br>彩色为家具 · 米白色为墙体"
+    : "点击家具显示移动／旋转手柄<br>拖空白处旋转视图 · Shift＋左键平移视角";
   showToast(roam ? "WASD 移动 · 拖动环视 · Esc 退出" : "已回到诊断视角");
 }
 
@@ -2554,6 +3012,8 @@ function animate() {
     camera.rotation.set(pitch, yaw, 0);
     camera.position.y += (homeY - camera.position.y) * 0.15;
   }
+
+  syncFurnitureGizmo();
 
   // 热区呼吸
   blobs.forEach(b => {

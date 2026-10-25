@@ -338,6 +338,10 @@
     animation: slideUp 0.3s;
   }
   @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 16px); } }
+  .version-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .version-bar .btn.active { background: #f5a623; color: #fff; border-color: transparent; }
+  .version-bar .btn:disabled { opacity: .45; cursor: default; }
+  .version-info { font-size: 11.5px; color: var(--text-secondary); line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -353,11 +357,11 @@
     <select id="sceneSelect" class="btn" title="选择示例户型">
       <option value="">选择户型…</option>
     </select>
-    <a class="btn" href="/plan" style="text-decoration:none;border-color:rgba(233,162,76,.5);color:#ffd79a;background:rgba(233,162,76,.12)"
+    <a class="btn" href="/plan?v=compare1" style="text-decoration:none;border-color:rgba(233,162,76,.5);color:#ffd79a;background:rgba(233,162,76,.12)"
        title="上传户型图照片 → 自动识墙 → 摆家具 → 生成 3D">🖼 上传户型图</a>
     <button class="btn" id="uploadBtn" title="直接上传户型 JSON（高级）">⬆ JSON</button>
     <button class="btn" id="cultureBtn" title="启用命卦文化参考">☯ 命卦参考</button>
-    <a class="btn" href="/3d" title="进入第一视角 3D 漫游" style="text-decoration:none">🌐 3D 漫游</a>
+    <a class="btn" id="go3dLink" href="/3d?scene=local&v=compare1" title="继续编辑当前户型" style="text-decoration:none">🌐 3D 总览调整</a>
     <button class="btn primary" id="auditBtn">⚡ 开始诊断</button>
   </div>
 </div>
@@ -396,6 +400,11 @@
 
   <!-- 中间舞台 -->
   <div class="stage">
+    <div class="version-bar" aria-label="平面图版本">
+      <button class="btn" id="versionBefore" disabled>修改前平面图</button>
+      <button class="btn active" id="versionAfter" disabled>修改后平面图</button>
+      <span class="version-info" id="versionInfo">导入户型后，在这里切换修改前与修改后。</span>
+    </div>
     <div class="alert-card" id="alertCard">
       <div class="alert-icon">◈</div>
       <div class="alert-body">
@@ -444,6 +453,7 @@
 <input type="file" id="fileInput" accept=".json" style="display:none" />
 <div class="loading" id="loading"><div class="spinner"></div></div>
 
+<script src="/scene-store.js"></script>
 <script>
 // ============================================================
 //  全局状态
@@ -456,6 +466,7 @@ let showLabels = true;
 let viewScale = 1;
 let viewOffset = { x: 0, y: 0 };
 let currentFilter = "all";
+let planDocument = null, displayedVersion = "after", sceneRevision = 0;
 
 // 暖色调画布配色（对应 Figma 阳光客厅风格）
 const COLORS = {
@@ -495,6 +506,12 @@ async function init() {
   drawCompass();
   drawScoreRing(0, 18, true);
   await loadScenes();
+  restoreCurrentPlan();
+  document.getElementById("versionBefore").addEventListener("click", () => showPlanVersion("before"));
+  document.getElementById("versionAfter").addEventListener("click", () => showPlanVersion("after"));
+  window.addEventListener("storage", e => { if (e.key === SceneStore.KEY) restoreCurrentPlan(displayedVersion); });
+  window.addEventListener("pageshow", () => restoreCurrentPlan(displayedVersion));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) restoreCurrentPlan(displayedVersion); });
   document.getElementById("auditBtn").addEventListener("click", runAudit);
   document.getElementById("uploadBtn").addEventListener("click", () => document.getElementById("fileInput").click());
   document.getElementById("fileInput").addEventListener("change", handleFile);
@@ -513,6 +530,46 @@ async function init() {
     currentFilter = this.dataset.filter;
     renderResults();
   }));
+}
+
+function restoreCurrentPlan(version) {
+  try {
+    const doc = SceneStore.restore();
+    if (!doc) return;
+    if (planDocument?.id === doc.id && planDocument.revision === doc.revision) return;
+    planDocument = doc;
+    showPlanVersion(version || (new URLSearchParams(location.search).get("version") === "before" ? "before" : "after"));
+  } catch (error) { toast("当前户型读取失败：" + error.message); }
+}
+function showPlanVersion(version) {
+  if (!planDocument) return;
+  displayedVersion = version;
+  sceneData = SceneStore.clone(version === "before" ? planDocument.original : planDocument.updated);
+  sceneRevision++;
+  selectedVId = null; auditResult = null;
+  document.getElementById("sceneName").textContent = (sceneData.meta?.name || "当前户型") + (version === "before" ? " · 修改前" : " · 修改后");
+  document.getElementById("sceneNote").textContent = sceneData.meta?.note || "由导入图纸生成的当前户型";
+  const original = new Map(planDocument.original.furniture.map(f => [f.id, f.rect]));
+  const changed = planDocument.updated.furniture.filter(f => {
+    const r = original.get(f.id);
+    return !r || ["cx", "cy", "heading", "len", "wid"].some(k => Math.abs((r[k] || 0) - (f.rect[k] || 0)) > .001);
+  }).length;
+  document.getElementById("versionInfo").textContent = (version === "before" ? "导入生成的原始摆位" : `最新摆位 · ${changed} 件家具已调整`) +
+    (planDocument.migrated ? "；旧户型未留存初稿，以本次首次保存作为修改前版本。" : "；3D 调整后自动同步。");
+  const link=document.getElementById("go3dLink"), estimated=planDocument.updated.meta?.scale_estimated;
+  link.href=estimated?"/plan?v=compare1":"/3d?scene=local&v=compare1";
+  link.textContent=estimated?"先标定比例再进入 3D":"🌐 3D 总览调整";
+  if(estimated)document.getElementById("versionInfo").textContent+=" 当前为估算比例，需校准真实长度。";
+  ["versionBefore", "versionAfter"].forEach(id => {
+    const button = document.getElementById(id); button.disabled = false;
+    button.classList.toggle("active", (id === "versionBefore") === (version === "before"));
+  });
+  document.getElementById("canvasHint").textContent = version === "before" ? "修改前平面图 · 查看此版本不会覆盖 3D 的最新摆位" : "修改后平面图 · 与 3D 总览中的最新摆位同步";
+  clearResults(); render(); runAudit();
+}
+function useNewScene(scene) {
+  planDocument = SceneStore.commit(scene, {newDocument: true, lockBaseline: true});
+  viewScale = 1; viewOffset = {x: 0, y: 0}; showPlanVersion("after");
 }
 
 function switchTab(e) {
@@ -554,11 +611,7 @@ async function loadScene(e) {
   try {
     const res = await fetch("/api/scene/" + id);
     sceneData = await res.json();
-    document.getElementById("sceneName").textContent = sceneData.meta?.name || id;
-    document.getElementById("sceneNote").textContent = sceneData.meta?.note || "";
-    selectedVId = null; auditResult = null;
-    clearResults();
-    render();
+    useNewScene(sceneData);
   } catch (e) { toast("加载户型失败：" + e.message); }
   finally { showLoading(false); }
 }
@@ -570,10 +623,7 @@ function handleFile(e) {
   reader.onload = (ev) => {
     try {
       sceneData = JSON.parse(ev.target.result);
-      document.getElementById("sceneName").textContent = sceneData.meta?.name || file.name;
-      document.getElementById("sceneNote").textContent = sceneData.meta?.note || "已上传：" + file.name;
-      selectedVId = null; auditResult = null;
-      clearResults(); render();
+      useNewScene(sceneData);
     } catch (err) { toast("JSON 解析失败：" + err.message); }
   };
   reader.readAsText(file, "utf-8");
@@ -585,6 +635,7 @@ function handleFile(e) {
 // ============================================================
 async function runAudit() {
   if (!sceneData) { toast("请先加载户型"); return; }
+  const revision = sceneRevision;
   showLoading(true);
   try {
     const res = await fetch("/api/audit?culture=" + cultureEnabled, {
@@ -592,7 +643,10 @@ async function runAudit() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sceneData),
     });
-    auditResult = await res.json();
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "诊断失败");
+    if (revision !== sceneRevision) return;
+    auditResult = result;
     currentFilter = "all";
     document.querySelectorAll(".filter-pill").forEach(x => x.classList.toggle("active", x.dataset.filter === "all"));
     renderResults();
@@ -721,6 +775,10 @@ function getBounds() {
   const add = (x, y) => { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); };
   (sceneData.walls || []).forEach(w => { add(w.a[0], w.a[1]); add(w.b[0], w.b[1]); });
   (sceneData.furniture || []).forEach(f => rectCorners(f.rect).forEach(p => add(p[0], p[1])));
+  if (planDocument) [planDocument.original, planDocument.updated].forEach(scene => {
+    scene.walls.forEach(w => { add(...w.a); add(...w.b); });
+    scene.furniture.forEach(f => rectCorners(f.rect).forEach(p => add(...p)));
+  });
   if (!isFinite(minX)) return { minX: 0, minY: 0, maxX: 10, maxY: 10 };
   return { minX: minX - 1, minY: minY - 1, maxX: maxX + 1, maxY: maxY + 1 };
 }
@@ -740,7 +798,8 @@ function worldToScreen(x, y, bounds) {
   const scale = Math.min(w / bw, h / bh) * 0.9 * viewScale;
   const ox = (w - bw * scale) / 2 - bounds.minX * scale + viewOffset.x;
   const oy = (h + bh * scale) / 2 + bounds.minY * scale + viewOffset.y;
-  return [x * scale + ox, -y * scale + oy, scale];
+  const displayX = sceneData?.meta?.custom ? bounds.minX + bounds.maxX - x : x;
+  return [displayX * scale + ox, -y * scale + oy, scale];
 }
 
 function render() {
@@ -867,9 +926,10 @@ function drawFurniture(f, bounds) {
   if (type === "bed" || type === "sofa") {
     const rad = r.heading * Math.PI / 180;
     const [cx, cy, scale] = worldToScreen(r.cx, r.cy, bounds);
-    const backX = cx - Math.cos(rad) * r.len * scale / 2;
+    const mirror = sceneData?.meta?.custom ? -1 : 1;
+    const backX = cx - mirror * Math.cos(rad) * r.len * scale / 2;
     const backY = cy + Math.sin(rad) * r.len * scale / 2;
-    const hx = Math.sin(rad) * r.wid * scale / 2;
+    const hx = mirror * Math.sin(rad) * r.wid * scale / 2;
     const hy = Math.cos(rad) * r.wid * scale / 2;
     ctx.strokeStyle = stroke; ctx.lineWidth = 3;
     ctx.beginPath();

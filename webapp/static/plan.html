@@ -118,6 +118,19 @@
   }
   .stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
   .stage.dragging canvas { cursor: grabbing; }
+  .stage canvas { touch-action: none; }
+  .editbar {
+    position: absolute; left: 12px; top: 12px; right: 12px; z-index: 2;
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 9px; border-radius: 14px; background: rgba(26,20,15,.92);
+    border: 1px solid var(--hair);
+  }
+  .editbar .gbtn.on { background: var(--amber-grad); color: #3a2708; }
+  .edit-help {
+    position: absolute; left: 14px; right: 14px; bottom: 58px;
+    padding: 8px 12px; border-radius: 10px; background: rgba(26,20,15,.88);
+    color: var(--t2); font-size: 11.5px; pointer-events: none; line-height: 1.6;
+  }
   .stage .empty {
     position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 14px; text-align: center;
@@ -220,7 +233,8 @@
     <span><i>4</i><b>摆放家具</b></span>
   </div>
   <div style="display:flex;gap:8px">
-    <button class="gbtn" id="btnDetect" disabled>自动识墙</button>
+    <button class="gbtn" id="btnDetect" disabled>重新识别要素</button>
+    <button class="gbtn" id="btnViewPlan" disabled>查看平面图</button>
     <button class="gbtn amber" id="btnGo3D" disabled>生成 3D →</button>
   </div>
 </header>
@@ -232,28 +246,29 @@
     <button class="tbtn" id="btnUpload"><em>⬆</em>上传户型图</button>
     <button class="tbtn" id="btnDemo"><em>▤</em>载入示例图纸</button>
     <input type="file" id="fileInput" accept="image/*" />
-    <div class="hint">支持 JPG / PNG，也可直接把图片拖进画布</div>
+    <div class="hint">支持 JPG / PNG。导入后自动识别墙线、常见家具符号与门窗候选，识别结果可修改。</div>
   </div>
 
   <div class="tool-group">
     <div class="grp-lab">工具</div>
     <button class="tbtn on" data-tool="pan"><em>✥</em>浏览</button>
     <button class="tbtn" data-tool="scale"><em>⟷</em>标定比例</button>
-    <button class="tbtn" data-tool="wall"><em>╱</em>画墙</button>
+    <button class="tbtn" data-tool="edit"><em>↗</em>修改墙线</button>
+    <button class="tbtn" data-tool="wall"><em>╱</em>手动画墙</button>
     <button class="tbtn" data-tool="door"><em>🚪</em>标门</button>
     <button class="tbtn" data-tool="window"><em>▭</em>标窗</button>
-    <button class="tbtn" data-tool="erase"><em>✕</em>删除</button>
+    <button class="tbtn" data-tool="erase"><em>✕</em>点选删除</button>
+  </div>
+
+  <div class="tool-group" id="propBox" style="display:none">
+    <div class="grp-lab">选中项</div>
+    <div id="propBody"></div>
   </div>
 
   <div class="tool-group">
     <div class="grp-lab">家具（拖到图上）</div>
     <div class="pal" id="palette"></div>
     <div class="hint">拖入后可拖动 · 拖顶端圆柄自由旋转 · Q/E 微调 · R 转90° · F 翻转 · Delete 删除</div>
-  </div>
-
-  <div class="tool-group" id="propBox" style="display:none">
-    <div class="grp-lab">选中项</div>
-    <div id="propBody"></div>
   </div>
 
   <div class="tool-group">
@@ -269,6 +284,15 @@
 <!-- 画布 -->
 <div class="stage" id="stage">
   <canvas id="cv"></canvas>
+  <div class="editbar" aria-label="墙线编辑工具">
+    <button class="gbtn sm" id="btnGeneratedView">生成平面图</button>
+    <button class="gbtn sm" id="btnOverlayView">原图叠加</button>
+    <button class="gbtn sm" data-tool="edit">修改墙线</button>
+    <button class="gbtn sm" data-tool="wall">＋ 手动画墙</button>
+    <button class="gbtn sm" id="btnDeleteSelected" disabled>删除选中</button>
+    <button class="gbtn sm" id="btnUndoWall" disabled>撤销墙线</button>
+  </div>
+  <div class="edit-help" id="editHelp">选中墙线可修改或删除；手动画墙支持拖出线段，也可依次点击起点、终点。</div>
   <div class="empty" id="empty">
     <div class="dropzone" id="dropzone">
       <div class="big">🗺</div>
@@ -286,6 +310,7 @@
   <div class="card">
     <h4>图纸信息</h4>
     <div class="sub" id="imgInfo">尚未上传</div>
+    <div class="sub" id="recognitionInfo" role="status" style="margin-top:8px">导入图片后自动生成可编辑平面图。</div>
     <div style="margin-top:10px">
       <div class="kv"><span>比例</span><b id="kScale">未标定</b></div>
       <div class="kv"><span>墙体段</span><b id="kWall">0</b></div>
@@ -320,6 +345,8 @@
   </div>
 </div>
 
+<script src="/scene-store.js"></script>
+<script src="/plan-recognition.js"></script>
 <script>
 /* ============================================================================
    ImmerseHome · 户型图识别
@@ -331,6 +358,8 @@ const stage = document.getElementById("stage");
 
 const S = {
   img: null,
+  recovered: false,
+  documentId: null, worldFrame: null, scaleEstimated: false, overlay: true, recognizing: false, planName:"自定义户型",
   view: { s: 1, tx: 0, ty: 0 },
   tool: "pan",
   walls: [],        // {a:[px,py], b:[px,py], kind:'wall'|'window'}
@@ -343,6 +372,50 @@ const S = {
   audit: null,
   auditT: 0,
 };
+
+// 保存墙和门的关联，撤销后门仍附着在对应墙体上。
+const wallHistory = [];
+let wallDragBefore = null;
+function wallSnapshot() {
+  return JSON.stringify({
+    walls: S.walls.map(w => ({ a: [...w.a], b: [...w.b], kind: w.kind })),
+    doors: S.doors.map(d => ({ ...d, wall: S.walls.indexOf(d.wall) })),
+  });
+}
+function rememberWalls(before) {
+  if (before === wallSnapshot()) return;
+  wallHistory.push(before);
+  if (wallHistory.length > 50) wallHistory.shift();
+  document.getElementById("btnUndoWall").disabled = false;
+}
+function undoWallEdit() {
+  if (!wallHistory.length) return;
+  const data = JSON.parse(wallHistory.pop());
+  S.walls = data.walls;
+  S.doors = data.doors.map(d => ({ ...d, wall: S.walls[d.wall] || null }));
+  S.drag = null; S.draft = null; wallDragBefore = null;
+  selectOnly(null); renderProps(true); refreshStats(); scheduleAudit(); draw();
+  document.getElementById("btnUndoWall").disabled = !wallHistory.length;
+  toast("已撤销上一次墙线修改");
+}
+function syncWallDoors(w) {
+  const dx = w.b[0] - w.a[0], dy = w.b[1] - w.a[1];
+  doorsOn(w).forEach(d => {
+    d.x = w.a[0] + dx * d.t; d.y = w.a[1] + dy * d.t;
+    d.ang = Math.atan2(dy, dx);
+  });
+}
+function deleteItem(ref) {
+  if (!ref) { toast("请先选中一段墙线、门或家具"); return; }
+  const before = wallSnapshot();
+  if (S.walls.includes(ref)) {
+    S.walls = S.walls.filter(w => w !== ref);
+    S.doors = S.doors.filter(d => d.wall !== ref);
+  } else if (S.doors.includes(ref)) S.doors = S.doors.filter(d => d !== ref);
+  else S.furn = S.furn.filter(f => f !== ref);
+  rememberWalls(before);
+  selectOnly(null); renderProps(true); refreshStats(); scheduleAudit(); draw();
+}
 
 /* 家具库：cat 用于分组，房间类型由 type 反推（见 3d.html ROOM_OF） */
 const FURN_DEFS = [
@@ -410,7 +483,11 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "#1d1811"; ctx.fillRect(0, 0, w, h);
 
-  if (S.img) {
+  if (S.img && !S.overlay) {
+    ctx.fillStyle = "#f3f0e9";
+    ctx.fillRect(S.view.tx, S.view.ty, S.img.width*S.view.s, S.img.height*S.view.s);
+  }
+  if (S.img && S.overlay) {
     ctx.save();
     ctx.imageSmoothingQuality = "high";
     ctx.globalAlpha = 0.95;
@@ -422,7 +499,16 @@ function draw() {
   S.walls.forEach((seg, i) => {
     const ds = doorsOn(seg);
     if (!ds.length) drawSeg(seg, i);
-    else splitWallByDoors(seg, ds).forEach(s => drawSeg(s, i));
+    else splitWallByDoors(seg, ds).forEach(s => drawSeg({ ...s, sel: seg.sel }, i));
+    if (seg.sel) {
+      ctx.save();
+      [seg.a, seg.b].forEach(p => {
+        const q = toScreen(p);
+        ctx.fillStyle = "#fff"; ctx.strokeStyle = "#E9A24C"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(q[0], q[1], 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      });
+      ctx.restore();
+    }
   });
 
   // 门（画在洞口上）
@@ -447,6 +533,19 @@ function draw() {
   // 家具
   S.furn.forEach((f, i) => drawFurniture(f, i));
 
+  if (S.draft) {
+    const a = toScreen(S.draft.a), b = toScreen(S.draft.b);
+    ctx.save(); ctx.strokeStyle = "#79DEBC"; ctx.fillStyle = "#79DEBC";
+    ctx.lineWidth = 3; ctx.setLineDash([8, 5]);
+    ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke(); ctx.setLineDash([]);
+    [a, b].forEach(p => { ctx.beginPath(); ctx.arc(...p, 5, 0, Math.PI * 2); ctx.fill(); });
+    const length = Math.hypot(S.draft.b[0] - S.draft.a[0], S.draft.b[1] - S.draft.a[1]);
+    ctx.font = "600 12px sans-serif";
+    ctx.fillText(S.pxPerM ? `${(length / S.pxPerM).toFixed(2)} m` : `${Math.round(length)} px`,
+      (a[0] + b[0]) / 2 + 10, (a[1] + b[1]) / 2 - 10);
+    ctx.restore();
+  }
+
   // 标定临时线
   if (S.pending) {
     const a = toScreen(S.pending.a), b = toScreen(S.pending.b);
@@ -462,7 +561,7 @@ function drawSeg(seg, i) {
   const isWin = seg.kind === "window";
   ctx.save();
   ctx.lineCap = "round";
-  ctx.strokeStyle = isWin ? "rgba(140,205,235,.95)" : "rgba(233,162,76,.95)";
+  ctx.strokeStyle = isWin ? "#4a9bc8" : (S.overlay ? "rgba(233,162,76,.95)" : "#665947");
   ctx.lineWidth = isWin ? 3 : 3.6;
   if (seg.sel) { ctx.strokeStyle = "#fff"; ctx.lineWidth += 1.5; }
   ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
@@ -479,22 +578,23 @@ function drawFurniture(f, i) {
   const s = S.view.s;
   ctx.save();
   ctx.translate(c[0], c[1]);
-  ctx.rotate(f.heading * Math.PI / 180);
+  ctx.rotate(-f.heading * Math.PI / 180);
   if (f.flip) ctx.scale(-1, 1);
   const L = f.len * S.pxPerM * s, W = f.wid * S.pxPerM * s;
-  ctx.fillStyle = f.sel ? "rgba(233,162,76,.42)" : "rgba(255,255,255,.20)";
-  ctx.strokeStyle = f.sel ? "#F7CB84" : "rgba(255,255,255,.62)";
+  const fills = {bed:"#a4d2ca",sofa:"#a3c6e0",table:"#e9c88c",other:"#cebfdc"};
+  ctx.fillStyle = f.sel ? "rgba(233,162,76,.55)" : (S.overlay ? "rgba(116,169,185,.30)" : (fills[f.type] || "#c6d2ba"));
+  ctx.strokeStyle = f.sel ? "#cf7e23" : (S.overlay ? "#6d8c9a" : "#647078");
   ctx.lineWidth = f.sel ? 2 : 1.4;
-  roundRect(-W / 2, -L / 2, W, L, 4);
+  roundRect(-L / 2, -W / 2, L, W, 4);
   ctx.fill(); ctx.stroke();
   // 朝向前缘标记（让人看得出哪边是"头"）
-  ctx.strokeStyle = f.sel ? "rgba(247,203,132,.95)" : "rgba(255,255,255,.4)";
+  ctx.strokeStyle = f.sel ? "#cf7e23" : "#647078";
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-W / 2 + 5, -L / 2 + 4); ctx.lineTo(W / 2 - 5, -L / 2 + 4); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,.92)";
+  ctx.beginPath(); ctx.moveTo(-L / 2 + 4, -W / 2 + 5); ctx.lineTo(-L / 2 + 4, W / 2 - 5); ctx.stroke();
+  ctx.fillStyle = S.overlay ? "#34434a" : "#3f4a50";
   ctx.font = "600 10px -apple-system, sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  if (W > 34) ctx.fillText(f.name, 0, 0);
+  if (Math.max(W,L) > 34) ctx.fillText(f.name, 0, 0);
   ctx.restore();
   // 选中时：旋转手柄（顶端小圆点，拖着它自由转）
   if (f.sel) {
@@ -515,7 +615,7 @@ function rotHandlePos(f) {
   const c = toScreen([f.cx, f.cy]);
   const D = f.len * S.pxPerM * S.view.s / 2 + 26;
   const a = f.heading * Math.PI / 180;
-  return [c[0] + D * Math.sin(a), c[1] - D * Math.cos(a)];
+  return [c[0] - D * Math.cos(a), c[1] + D * Math.sin(a)];
 }
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
@@ -534,15 +634,21 @@ function loadImage(file) {
   const img = new Image();
   img.onload = () => {
     S.img = img;
+    S.recovered = false;
+    S.documentId = SceneStore.newId(); S.worldFrame = null; S.scaleEstimated = true;
+    S.planName=file.name.replace(/\.[^.]+$/,"");
     deskewDone = false;
     S.walls = []; S.doors = []; S.furn = []; S.pxPerM = 0; S.audit = null;
+    resetWallEditing();
     document.getElementById("empty").classList.add("off");
     document.getElementById("imgInfo").textContent = `${file.name} · ${img.width}×${img.height}`;
     document.getElementById("btnDetect").disabled = false;
     document.getElementById("btnGo3D").disabled = false;
     fitView(); refreshStats(); setStep(2);
+    URL.revokeObjectURL(url);
+    setTimeout(() => recognizePlanElements(), 30);
   };
-  img.onerror = () => toast("图片读取失败");
+  img.onerror = () => { URL.revokeObjectURL(url); toast("图片读取失败"); };
   img.src = url;
 }
 
@@ -752,10 +858,69 @@ function detectWalls() {
     if (!dup) merged.push(s);
   });
 
+  const before = wallSnapshot();
   S.walls = mergeDupWalls(merged);
   S.doors = [];
+  rememberWalls(before); selectOnly(null); renderProps(true); setTool("edit");
   refreshStats(); draw(); setStep(3);
-  toast(`识别到 ${merged.length} 段墙线，可拖动端点修正`);
+  toast(`识别到 ${S.walls.length} 段墙线；点选后可拖动、修改或删除，也可手动画墙`);
+}
+
+function recognizePlanElements() {
+  if (!S.img || S.recognizing || S.recovered) return;
+  S.recognizing = true; refreshStats();
+  document.getElementById("btnDetect").disabled = true;
+  document.getElementById("recognitionInfo").textContent = "正在从图纸像素提取墙线、家具与门窗候选…";
+  try {
+    detectWalls();
+    const ratio = Math.max(1, Math.max(S.img.width,S.img.height)/1000);
+    const image = document.createElement("canvas");
+    image.width = Math.round(S.img.width/ratio); image.height = Math.round(S.img.height/ratio);
+    const g = image.getContext("2d"); g.drawImage(S.img,0,0,image.width,image.height);
+    const result = PlanRecognition.analyze(g.getImageData(0,0,image.width,image.height),{ratio:S.img.width/image.width});
+    // 家具细线框不应再被当作墙；只移除明确识别的家具内部短线。
+    S.walls = S.walls.filter(w => !result.furniture.some(f => f.confidence>=.7 &&
+      [w.a,w.b].every(p=>p[0]>=f.bbox.x0-4 && p[0]<=f.bbox.x1+4 && p[1]>=f.bbox.y0-4 && p[1]<=f.bbox.y1+4)));
+    if (!S.pxPerM) { S.pxPerM=Math.max(S.img.width,S.img.height)/12; S.scaleEstimated=true; }
+    const manual = S.furn.filter(f=>f.source!=="recognized");
+    const recognized = result.furniture.filter(f=>!manual.some(m=>Math.hypot(m.cx-f.cx,m.cy-f.cy)<15)).map(f=>({
+      type:f.type,name:f.name,cx:f.cx,cy:f.cy,len:+(f.pixelLen/S.pxPerM).toFixed(3),wid:+(f.pixelWid/S.pxPerM).toFixed(3),
+      heading:f.heading,height:FURN_DEFS.find(d=>d.type===f.type)?.height || .7,
+      source:"recognized",confidence:f.confidence,
+    }));
+    S.furn = [...manual,...recognized];
+    result.windows.forEach(window => {
+      const mid=[(window.a[0]+window.b[0])/2,(window.a[1]+window.b[1])/2], hit=nearestWall(mid,18*ratio);
+      if(!hit)return;
+      const wall=hit.seg,dx=wall.b[0]-wall.a[0],dy=wall.b[1]-wall.a[1],l2=dx*dx+dy*dy;
+      if(!l2)return;
+      const wd=[window.b[0]-window.a[0],window.b[1]-window.a[1]];
+      if(Math.abs((dx*wd[0]+dy*wd[1])/(Math.sqrt(l2)*Math.hypot(...wd)))<.94)return;
+      const project=p=>Math.max(0,Math.min(1,((p[0]-wall.a[0])*dx+(p[1]-wall.a[1])*dy)/l2));
+      const ts=[project(window.a),project(window.b)].sort((a,b)=>a-b);
+      const at=t=>[wall.a[0]+dx*t,wall.a[1]+dy*t];
+      if((ts[1]-ts[0])*Math.sqrt(l2)<12)return;
+      const pieces=[{a:wall.a,b:at(ts[0]),kind:wall.kind},{a:at(ts[0]),b:at(ts[1]),kind:"window"},{a:at(ts[1]),b:wall.b,kind:wall.kind}];
+      S.walls=S.walls.filter(w=>w!==wall).concat(pieces.filter(w=>Math.hypot(w.b[0]-w.a[0],w.b[1]-w.a[1])>4));
+    });
+    const gaps=PlanRecognition.doorGaps(S.walls,result), removed=new Set(gaps.flatMap(d=>d.replace));
+    S.walls=S.walls.filter((w,i)=>!removed.has(i)); S.doors=[];
+    gaps.forEach(d=>{
+      const wall={a:d.a,b:d.b,kind:"wall"};S.walls.push(wall);
+      const dx=wall.b[0]-wall.a[0],dy=wall.b[1]-wall.a[1],l2=dx*dx+dy*dy;
+      S.doors.push({x:d.center[0],y:d.center[1],w:d.width,ang:Math.atan2(dy,dx),wall,
+        t:((d.center[0]-wall.a[0])*dx+(d.center[1]-wall.a[1])*dy)/l2,source:"recognized",confidence:d.confidence});
+    });
+    S.overlay=false; selectOnly(null); renderProps(true); refreshStats(); draw();
+    const uncertain=recognized.filter(f=>f.type==="other").length;
+    document.getElementById("recognitionInfo").textContent = `已生成平面图：${S.walls.length} 段墙线、${recognized.length} 件家具候选、${S.doors.length} 个门洞、${S.walls.filter(w=>w.kind==="window").length} 段窗。`+
+      (uncertain?`${uncertain} 件家具待分类。`:"")+"本地识别结果请核对，可修改、删除或补画。";
+    document.getElementById("kScale").textContent = S.scaleEstimated ? "估算比例 · 请标定" : `${S.pxPerM.toFixed(1)} px / m`;
+    publishPlanDraft(); scheduleAudit();
+    toast(S.scaleEstimated?"平面图已生成；请标定一段实际长度后进入 3D":"识别平面图已生成，可核对后进入 3D");
+  } catch(error) {
+    document.getElementById("recognitionInfo").textContent="自动识别失败："+error.message+"，仍可用画墙与家具工具手动补充。";
+  } finally { S.recognizing=false; document.getElementById("btnDetect").disabled=S.recovered; refreshStats(); }
 }
 
 /* 同一堵墙会被检出两条平行边：按 方向+偏移 聚类，取中线并合并重叠区间 */
@@ -841,15 +1006,55 @@ function snapSeg(s) {
 
 /* ---------------------------------------------------------------- 交互 */
 let panning = false, panStart = null;
+let wallPress = null;
+function wallPoint(ip, origin, free) {
+  let p = [...ip];
+  if (free) return p;
+  if (origin) {
+    const dx = Math.abs(p[0] - origin[0]), dy = Math.abs(p[1] - origin[1]);
+    if (dx > dy * 6) p[1] = origin[1];
+    else if (dy > dx * 6) p[0] = origin[0];
+  }
+  let best = 12 / S.view.s;
+  S.walls.forEach(w => [w.a, w.b].forEach(q => {
+    if (S.drag && S.drag.ref === w) return;
+    const distance = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (distance < best) { best = distance; p = [...q]; }
+  }));
+  return p;
+}
+function finishWall(point, free) {
+  const a = S.draft.a, b = wallPoint(point, a, free);
+  if (Math.hypot(b[0] - a[0], b[1] - a[1]) * S.view.s < 6) {
+    toast("墙线过短，请把终点放远一些"); return;
+  }
+  const before = wallSnapshot();
+  const wall = { a: [...a], b, kind: "wall" };
+  S.walls.push(wall); S.draft = null; wallPress = null;
+  rememberWalls(before); selectOnly(wall); renderProps(true);
+  refreshStats(); scheduleAudit(); draw();
+  toast("已添加墙线，可继续画墙，或切换「修改墙线」调整");
+}
 cv.addEventListener("pointerdown", e => {
+  if (e.button !== 0 && e.button !== 1) return;
+  if (!S.img) { toast("请先上传户型图或载入示例图纸"); return; }
+  e.preventDefault(); cv.setPointerCapture(e.pointerId);
   const r = cv.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   const ip = toImg(mx, my);
 
-  if (S.tool === "pan" || e.button === 1) {
-    // 先看是否点到家具 / 墙端点
-    const hit = hitTest(mx, my);
-    if (hit) { selectOnly(hit.ref); S.drag = hit; draw(); renderProps(); return; }
+  if (e.button === 1 || (e.shiftKey && (S.tool === "pan" || S.tool === "edit"))) {
+    panning = true; panStart = { x: mx, y: my, tx: S.view.tx, ty: S.view.ty };
+    stage.classList.add("dragging"); return;
+  }
+  if (S.tool === "pan" || S.tool === "edit") {
+    const hit = hitTest(mx, my, true);
+    if (hit) {
+      selectOnly(hit.ref);
+      S.drag = { ...hit, start: ip, a: hit.ref.a && [...hit.ref.a], b: hit.ref.b && [...hit.ref.b] };
+      if (hit.kind === "furn") S.drag.off = [ip[0] - hit.ref.cx, ip[1] - hit.ref.cy];
+      wallDragBefore = wallSnapshot(); draw(); renderProps(); return;
+    }
     if (S.sel) { selectOnly(null); renderProps(); }
     panning = true; panStart = { x: mx, y: my, tx: S.view.tx, ty: S.view.ty };
     stage.classList.add("dragging");
@@ -861,47 +1066,35 @@ cv.addEventListener("pointerdown", e => {
     draw(); return;
   }
   if (S.tool === "wall") {
-    if (!S.draft) { S.draft = { a: ip, b: ip }; }
-    else {
-      S.walls.push(snapSeg({ a: S.draft.a, b: ip, kind: "wall" }));
-      S.draft = null; refreshStats(); scheduleAudit();
-    }
+    if (!S.draft) {
+      const start = wallPoint(ip, null, e.altKey);
+      S.draft = { a: start, b: start };
+      wallPress = { x: mx, y: my };
+    } else finishWall(ip, e.altKey);
     draw(); return;
   }
   if (S.tool === "door") {
     const h = nearestWall(ip, 30);
     if (!h) { toast("请把门点在墙线上（在墙上开洞）"); return; }
     const wpx = 0.9 * (S.pxPerM || 60);
+    const before = wallSnapshot();
     S.doors.push({ x: h.x, y: h.y, w: wpx, ang: h.ang, wall: h.seg, t: h.t });
-    S.sel = S.doors[S.doors.length - 1];
+    rememberWalls(before); selectOnly(S.doors[S.doors.length - 1]);
     refreshStats(); scheduleAudit(); draw(); renderProps(); return;
   }
   if (S.tool === "window") {
     const h = nearestWall(ip, 30);
     if (!h) { toast("请点在墙线上标窗"); return; }
+    const before = wallSnapshot();
     h.seg.kind = h.seg.kind === "window" ? "wall" : "window";
+    rememberWalls(before);
     refreshStats(); scheduleAudit(); draw(); return;
   }
   if (S.tool === "erase") {
     const hit = hitTest(mx, my, true);
-    if (hit && hit.kind === "wall") {
-      // 拆墙：连带把墙上的门一起去掉
-      S.walls = S.walls.filter(w => w !== hit.ref);
-      S.doors = S.doors.filter(d => d.wall !== hit.ref);
-      S.sel = null;
-    } else if (hit && hit.kind === "furn") { S.furn = S.furn.filter(f => f !== hit.ref); S.sel = null; }
-    else if (hit && hit.kind === "door") { S.doors = S.doors.filter(d => d !== hit.ref); S.sel = null; }
-    else {
-      // 删最近的门
-      let bi = -1, bd = 1e9;
-      S.doors.forEach((d, i) => {
-        const [sx, sy] = toScreen([d.x, d.y]);
-        const dd = Math.hypot(sx - mx, sy - my);
-        if (dd < bd) { bd = dd; bi = i; }
-      });
-      if (bd < 20) S.doors.splice(bi, 1);
-    }
-    refreshStats(); scheduleAudit(); draw(); return;
+    if (hit) deleteItem(hit.ref);
+    else toast("请点击要删除的墙线、门或家具");
+    return;
   }
 });
 
@@ -917,12 +1110,18 @@ cv.addEventListener("pointermove", e => {
   }
   if (S.drag) {
     if (S.drag.kind === "end") {
-      S.drag.ref[S.drag.which] = ip;
+      S.drag.ref[S.drag.which] = wallPoint(ip, null, e.altKey);
+      syncWallDoors(S.drag.ref);
+    } else if (S.drag.kind === "wall") {
+      const dx = ip[0] - S.drag.start[0], dy = ip[1] - S.drag.start[1];
+      S.drag.ref.a = [S.drag.a[0] + dx, S.drag.a[1] + dy];
+      S.drag.ref.b = [S.drag.b[0] + dx, S.drag.b[1] + dy];
+      syncWallDoors(S.drag.ref);
     } else if (S.drag.kind === "rot") {
       // 拖手柄自由旋转：手柄方向跟手，默认 15° 吸附，按住 Alt 自由微调
       const f = S.drag.ref;
       const c = toScreen([f.cx, f.cy]);
-      let h = Math.atan2(mx - c[0], -(my - c[1])) * 180 / Math.PI;
+      let h = Math.atan2(my - c[1], -(mx - c[0])) * 180 / Math.PI;
       h = (h + 360) % 360;
       if (!e.altKey) h = Math.round(h / 15) * 15 % 360;
       f.heading = Math.round(h * 10) / 10;
@@ -939,19 +1138,36 @@ cv.addEventListener("pointermove", e => {
     }
     draw(); return;
   }
-  if (S.draft) { S.draft.b = ip; draw(); }
+  if (S.draft) { S.draft.b = wallPoint(ip, S.draft.a, e.altKey); draw(); }
   if (S.pending) { S.pending.b = ip; draw(); }
 });
 
-addEventListener("pointerup", () => {
+addEventListener("pointerup", e => {
+  if (S.draft && wallPress) {
+    const r = cv.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    if (Math.hypot(mx - wallPress.x, my - wallPress.y) > 6) finishWall(toImg(mx, my), e.altKey);
+    wallPress = null;
+  }
   if (panning) { panning = false; stage.classList.remove("dragging"); }
   if (S.drag) {
     const k = S.drag.kind;
+    if (k === "end" && Math.hypot(S.drag.ref.b[0] - S.drag.ref.a[0], S.drag.ref.b[1] - S.drag.ref.a[1]) < (S.pxPerM ? S.pxPerM * 0.06 : 2)) {
+      S.drag.ref.a = S.drag.a; S.drag.ref.b = S.drag.b; syncWallDoors(S.drag.ref);
+      toast("墙线过短，已恢复原位置");
+    }
     S.drag = null;
-    if (k === "furn" || k === "door" || k === "end" || k === "rot") {
-      refreshStats(); scheduleAudit(); renderProps();
+    if (wallDragBefore) { rememberWalls(wallDragBefore); wallDragBefore = null; }
+    if (["furn", "door", "end", "rot", "wall"].includes(k)) {
+      refreshStats(); scheduleAudit(); renderProps(true); draw();
     }
   }
+});
+cv.addEventListener("pointercancel", () => {
+  panning = false; stage.classList.remove("dragging");
+  if (wallDragBefore) rememberWalls(wallDragBefore);
+  S.drag = null; S.draft = null; wallPress = null; wallDragBefore = null;
+  refreshStats(); scheduleAudit(); renderProps(true); draw();
 });
 
 cv.addEventListener("wheel", e => {
@@ -968,7 +1184,10 @@ cv.addEventListener("wheel", e => {
 }, { passive: false });
 
 addEventListener("keydown", e => {
-  if (e.target.tagName === "INPUT") return;
+  if (e.target.closest("input, textarea, select, [contenteditable=true]")) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+    e.preventDefault(); undoWallEdit(); return;
+  }
   const fSel = S.furn.find(x => x === S.sel);
   if (fSel && (e.key === "r" || e.key === "R")) {
     fSel.heading = (fSel.heading + 90) % 360; draw(); scheduleAudit(); renderProps(true);
@@ -983,14 +1202,9 @@ addEventListener("keydown", e => {
     fSel.flip = !fSel.flip; draw(); renderProps(true);
   }
   if (e.key === "Delete" || e.key === "Backspace") {
-    if (S.furn.indexOf(S.sel) >= 0) {
-      S.furn = S.furn.filter(x => x !== S.sel); S.sel = null;
-    } else if (S.doors.indexOf(S.sel) >= 0) {
-      S.doors = S.doors.filter(x => x !== S.sel); S.sel = null;   // 封门
-    }
-    if (S.sel === null) { draw(); refreshStats(); scheduleAudit(); renderProps(true); }
+    if (S.sel) { e.preventDefault(); deleteItem(S.sel); }
   }
-  if (e.key === "Escape") { S.draft = null; S.pending = null; draw(); }
+  if (e.key === "Escape") { S.draft = null; S.pending = null; wallPress = null; draw(); }
 });
 
 function hitTest(mx, my, all) {
@@ -1010,12 +1224,12 @@ function hitTest(mx, my, all) {
   for (let i = S.furn.length - 1; i >= 0; i--) {
     const f = S.furn[i];
     const [cx, cy] = toScreen([f.cx, f.cy]);
-    const rad = -f.heading * Math.PI / 180;
+    const rad = f.heading * Math.PI / 180;
     const dx = mx - cx, dy = my - cy;
     const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
     const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
     const W = f.wid * S.pxPerM * S.view.s / 2, L = f.len * S.pxPerM * S.view.s / 2;
-    if (Math.abs(lx) < W && Math.abs(ly) < L) return { kind: "furn", ref: f, off: [0, 0] };
+    if (Math.abs(lx) < L && Math.abs(ly) < W) return { kind: "furn", ref: f, off: [0, 0] };
   }
   // 门（优先于墙：点在门上是要挪门/删门，不是拆墙）
   for (const d of S.doors) {
@@ -1085,13 +1299,25 @@ function splitWallByDoors(w, ds) {
 function doorsOn(w) { return S.doors.filter(d => d.wall === w); }
 
 /* ---------------------------------------------------------------- 工具切换 */
-document.querySelectorAll(".tbtn[data-tool]").forEach(b => {
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".tbtn[data-tool]").forEach(x => x.classList.toggle("on", x === b));
-    S.tool = b.dataset.tool;
-    S.draft = null; S.pending = null; draw();
-  });
-});
+function setTool(tool) {
+  S.tool = tool; S.draft = null; S.pending = null; wallPress = null; S.drag = null;
+  document.querySelectorAll("[data-tool]").forEach(x => x.classList.toggle("on", x.dataset.tool === tool));
+  cv.style.cursor = ["wall", "scale", "door", "window"].includes(tool) ? "crosshair" : (tool === "erase" ? "not-allowed" : "grab");
+  const help = {
+    edit: "点击墙身选中，拖动墙身平移、拖两端圆点修正；可在左侧输入尺寸，按 Delete 删除。Shift＋拖动平移画布。",
+    wall: "按住左键拖出墙线，或依次点击起点和终点；自动吸附水平、垂直及端点，Alt 自由画线，Esc 取消。",
+    erase: "点击要删除的墙线、门或家具；删墙会一并移除墙上的门。「撤销墙线」可恢复。",
+    pan: "拖动空白处浏览；点击墙线或家具可选中并调整。Shift＋拖动始终平移画布。",
+    scale: "依次点击一段已知长度的起点和终点，再输入实际米数。",
+    door: "点击墙线开门洞，可在左侧修改门宽。",
+    window: "点击墙线切换为窗墙，再次点击恢复实墙。",
+  };
+  document.getElementById("editHelp").textContent = help[tool];
+  draw();
+}
+document.querySelectorAll("[data-tool]").forEach(b => b.addEventListener("click", () => setTool(b.dataset.tool)));
+document.getElementById("btnDeleteSelected").onclick = () => deleteItem(S.sel);
+document.getElementById("btnUndoWall").onclick = undoWallEdit;
 
 /* ---------------------------------------------------------------- 家具面板 */
 const pal = document.getElementById("palette");
@@ -1129,7 +1355,7 @@ function placeFurniture(def, ip) {
   };
   S.furn.forEach(x => x.sel = false);
   S.furn.push(f);
-  S.sel = f;                       // 放完就选中，右侧可直接改尺寸
+  selectOnly(f);
   refreshStats(); draw(); scheduleAudit(); renderProps(true);
   setStep(4);
 }
@@ -1147,12 +1373,17 @@ document.getElementById("scaleOk").onclick = () => {
   const m = parseFloat(document.getElementById("scaleInput").value);
   if (!(m > 0)) { toast("请输入大于 0 的长度"); return; }
   const px = Math.hypot(S.pending.b[0] - S.pending.a[0], S.pending.b[1] - S.pending.a[1]);
+  const previousScale = S.pxPerM;
   S.pxPerM = px / m;
+  if(previousScale)S.furn.filter(f=>f.source==="recognized").forEach(f=>{
+    f.len=+(f.len*previousScale/S.pxPerM).toFixed(4);f.wid=+(f.wid*previousScale/S.pxPerM).toFixed(4);
+  });
+  S.scaleEstimated = false;
   document.getElementById("scaleModal").classList.remove("show");
   S.pending = null;
   document.getElementById("kScale").textContent = `${S.pxPerM.toFixed(1)} px / m`;
   toast(`比例已标定：1 米 = ${S.pxPerM.toFixed(1)} 像素`);
-  draw(); refreshStats();
+  draw(); refreshStats(); publishPlanDraft(); scheduleAudit();
 };
 addEventListener("keydown", e => {
   if (e.key === "Enter" && document.getElementById("scaleModal").classList.contains("show")) {
@@ -1166,6 +1397,7 @@ function selectOnly(ref) {
   S.sel = ref || null;
   S.furn.forEach(x => { x.sel = (x === ref); });
   S.walls.forEach(x => { x.sel = (x === ref); });
+  document.getElementById("btnDeleteSelected").disabled = !S.sel;
 }
 
 /* ------------------------------------------------ 选中项属性（改尺寸/改门宽） */
@@ -1180,12 +1412,60 @@ function renderProps(force) {
 
   const isFurn = S.furn.indexOf(sel) >= 0;
   const isDoor = S.doors.indexOf(sel) >= 0;
-  if (!isFurn && !isDoor) { box.style.display = "none"; return; }
+  const isWall = S.walls.includes(sel);
+  if (!isFurn && !isDoor && !isWall) { box.style.display = "none"; return; }
   box.style.display = "";
 
-  if (isFurn) {
+  if (isWall) {
+    const unit = S.pxPerM ? "m" : "px", factor = S.pxPerM || 1;
+    const length = Math.hypot(sel.b[0] - sel.a[0], sel.b[1] - sel.a[1]);
+    const angle = Math.atan2(sel.b[1] - sel.a[1], sel.b[0] - sel.a[0]);
+    body.innerHTML = `
+      <div class="prop-name">${sel.kind === "window" ? "窗墙" : "实墙"} · 第 ${S.walls.indexOf(sel) + 1} 段</div>
+      <label>长度 <input type="number" id="pWallLen" min="${S.pxPerM ? 0.06 : 2}" step="${S.pxPerM ? 0.1 : 1}" value="${(length / factor).toFixed(2)}"> ${unit}</label>
+      <label>角度 <input type="number" id="pWallAngle" step="1" value="${(angle * 180 / Math.PI).toFixed(1)}"> °</label>
+      <label>起点 X <input type="number" id="pWallAx" step="0.1" value="${(sel.a[0] / factor).toFixed(2)}"> ${unit}</label>
+      <label>起点 Y <input type="number" id="pWallAy" step="0.1" value="${(sel.a[1] / factor).toFixed(2)}"> ${unit}</label>
+      <label>终点 X <input type="number" id="pWallBx" step="0.1" value="${(sel.b[0] / factor).toFixed(2)}"> ${unit}</label>
+      <label>终点 Y <input type="number" id="pWallBy" step="0.1" value="${(sel.b[1] / factor).toFixed(2)}"> ${unit}</label>
+      <div class="hint">坐标从图纸左上角计算。拖墙身平移，拖端点修正；修改后按 Enter 或离开输入框生效。</div>
+      <button class="tbtn" id="pWallKind">${sel.kind === "window" ? "改为实墙" : "改为窗墙"}</button>
+      <button class="tbtn" id="pWallDel"><em>✕</em>删除这段墙线</button>`;
+    ["pWallLen", "pWallAngle", "pWallAx", "pWallAy", "pWallBx", "pWallBy"].forEach(id => {
+      const input = document.getElementById(id);
+      input.onchange = () => {
+        const v = Number(input.value);
+        if (!input.value.trim() || !Number.isFinite(v)) { renderProps(true); return; }
+        const before = wallSnapshot(), oldA = [...sel.a], oldB = [...sel.b];
+        if (id === "pWallLen" || id === "pWallAngle") {
+          const len = id === "pWallLen" ? v * factor : length;
+          const rad = id === "pWallAngle" ? v * Math.PI / 180 : angle;
+          sel.b = [sel.a[0] + len * Math.cos(rad), sel.a[1] + len * Math.sin(rad)];
+        } else {
+          const end = id.includes("WallA") ? "a" : "b", axis = id.endsWith("x") ? 0 : 1;
+          sel[end][axis] = v * factor;
+        }
+        if ((id === "pWallLen" && v <= 0) || Math.hypot(sel.b[0] - sel.a[0], sel.b[1] - sel.a[1]) < (S.pxPerM ? S.pxPerM * 0.06 : 2)) {
+          sel.a = oldA; sel.b = oldB; toast("墙线过短，请输入有效长度");
+        } else { syncWallDoors(sel); rememberWalls(before); }
+        refreshStats(); scheduleAudit(); renderProps(true); draw();
+      };
+      input.onkeydown = e => { if (e.key === "Enter") input.blur(); };
+    });
+    document.getElementById("pWallDel").onclick = () => deleteItem(sel);
+    document.getElementById("pWallKind").onclick = () => {
+      const before = wallSnapshot();
+      sel.kind = sel.kind === "window" ? "wall" : "window";
+      rememberWalls(before); refreshStats(); scheduleAudit(); renderProps(true); draw();
+    };
+  } else if (isFurn) {
     body.innerHTML = `
       <div class="prop-name">${sel.name}${sel.flip ? " · 已翻转" : ""}</div>
+      ${sel.source==="recognized"?`<div class="hint">由图纸识别，${sel.type==="other"?"类型待确认":"请核对类型、尺寸与朝向"}</div>`:""}
+      <label>类型 <select id="pType" style="max-width:120px;background:#302a24;color:#fff;border-radius:8px;padding:5px">
+        <option value="other">待分类家具</option>
+        ${FURN_DEFS.filter((d,i,a)=>a.findIndex(x=>x.type===d.type)===i).map(d=>`<option value="${d.type}" ${sel.type===d.type?"selected":""}>${d.name}</option>`).join("")}
+      </select></label>
       <label>长 <input type="number" id="pLen" step="0.1" min="0.2" value="${sel.len}"> m</label>
       <label>宽 <input type="number" id="pWid" step="0.1" min="0.2" value="${sel.wid}"> m</label>
       <label>朝向 <input type="number" id="pRot" step="15" value="${Math.round(sel.heading)}"> °</label>
@@ -1196,6 +1476,11 @@ function renderProps(force) {
       <button class="tbtn" id="pFlip"><em>⇋</em>左右翻转</button>
       <div class="hint">也可以直接拖家具顶端的圆柄自由转（按住 Alt 取消 15° 吸附）。</div>
       <button class="tbtn" id="pDel"><em>✕</em>删除这件家具</button>`;
+    document.getElementById("pType").value=sel.type;
+    document.getElementById("pType").onchange=e=>{
+      sel.type=e.target.value; sel.name=FURN_DEFS.find(f=>f.type===sel.type)?.name || "待分类家具";
+      draw();scheduleAudit();renderProps(true);
+    };
     ["pLen:len", "pWid:wid", "pRot:heading"].forEach(spec => {
       const [id, key] = spec.split(":");
       const el = document.getElementById(id);
@@ -1217,8 +1502,7 @@ function renderProps(force) {
       sel.flip = !sel.flip; draw(); renderProps(true);
     };
     document.getElementById("pDel").onclick = () => {
-      S.furn = S.furn.filter(f => f !== sel);
-      S.sel = null; refreshStats(); scheduleAudit(); draw(); renderProps(true);
+      deleteItem(sel);
     };
   } else {
     const ppm = S.pxPerM || 60;
@@ -1244,8 +1528,7 @@ function renderProps(force) {
       sel.w = v * ppm; draw(); scheduleAudit();
     });
     document.getElementById("pDDel").onclick = () => {
-      S.doors = S.doors.filter(d => d !== sel);
-      S.sel = null; refreshStats(); scheduleAudit(); draw(); renderProps(true);
+      deleteItem(sel);
     };
   }
 }
@@ -1255,7 +1538,8 @@ function refreshStats() {
   document.getElementById("kDoor").textContent = `${S.doors.length} / ${S.walls.filter(w => w.kind === "window").length}`;
   document.getElementById("kFurn").textContent = S.furn.length;
   const ready = S.img && S.pxPerM && S.walls.length;
-  document.getElementById("btnGo3D").disabled = !ready;
+  document.getElementById("btnGo3D").disabled = !ready || S.scaleEstimated || S.recognizing;
+  document.getElementById("btnViewPlan").disabled = !ready || S.recognizing;
 }
 function setStep(n) {
   const els = document.querySelectorAll("#stepsTop span:not(.sep)");
@@ -1292,8 +1576,10 @@ function buildScene() {
   S.walls.forEach(w => { all.push(w.a, w.b); });
   S.furn.forEach(f => { all.push([f.cx - f.len * S.pxPerM, f.cy - f.wid * S.pxPerM], [f.cx + f.len * S.pxPerM, f.cy + f.wid * S.pxPerM]); });
   if (!all.length) return null;
-  const minX = Math.min(...all.map(p => p[0])), maxX = Math.max(...all.map(p => p[0]));
-  const maxY = Math.max(...all.map(p => p[1]));
+  if (!S.pxPerM) return null;
+  const framePoints = S.walls.length ? S.walls.flatMap(w => [w.a,w.b]) : all;
+  if (!S.worldFrame) S.worldFrame = {maxX:Math.max(...framePoints.map(p=>p[0])),maxY:Math.max(...framePoints.map(p=>p[1]))};
+  const maxX = S.worldFrame.maxX, maxY = S.worldFrame.maxY;
   // x 取反：让 3D 俯视（北朝上）与图纸左右一致
   const M = p => [
     +( (maxX - p[0]) / S.pxPerM ).toFixed(3),
@@ -1339,7 +1625,7 @@ function buildScene() {
       id: "D-" + i,
       name: d.entry ? "入户门" : (label || "门" + (i + 1)),
       center: c, width: +(d.w / S.pxPerM).toFixed(2),
-      normal: [+Math.abs(nx).toFixed(2), +Math.abs(ny).toFixed(2)],
+      normal: [+NX.toFixed(2), +NY.toFixed(2)],
       in_wall: d.wall ? 1 : 0,
       // 没显式指定入户门时，第一扇门当入户门
       is_entry: !!d.entry || (!S.doors.some(x => x.entry) && i === 0),
@@ -1359,10 +1645,11 @@ function buildScene() {
 
   return {
     meta: {
-      name: "自定义户型", unit: "m",
+      name: S.planName, unit: "m",
       origin: "southwest",
       note: "由户型图识别生成",
-      custom: true,
+      custom: true, document_id: S.documentId || (S.documentId = SceneStore.newId()),
+      editor_transform: {maxX,maxY,pxPerM:S.pxPerM}, scale_estimated: S.scaleEstimated,
     },
     walls: walls.filter(w => Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]) > 0.05),
     doors, beams: [], furniture,
@@ -1377,6 +1664,7 @@ function scheduleAudit() {
 }
 async function runAudit() {
   const scene = buildScene();
+  if(scene?.walls.length && !S.recognizing) publishPlanDraft();
   if (!scene || !scene.walls.length || !scene.furniture.length) {
     document.getElementById("auditSub").textContent = "至少画一段墙并放一件家具，才能体检";
     return;
@@ -1421,16 +1709,126 @@ function renderAudit(res) {
 document.getElementById("btnUpload").onclick = () => document.getElementById("fileInput").click();
 document.getElementById("dropzone").onclick = () => document.getElementById("fileInput").click();
 document.getElementById("fileInput").onchange = e => { if (e.target.files[0]) loadImage(e.target.files[0]); };
-document.getElementById("btnDetect").onclick = detectWalls;
+document.getElementById("btnDetect").onclick = () => recognizePlanElements();
+document.getElementById("btnGeneratedView").onclick = () => { S.overlay = false; draw(); };
+document.getElementById("btnOverlayView").onclick = () => { S.overlay = true; draw(); };
 document.getElementById("zIn").onclick = () => { S.view.s *= 1.18; draw(); };
 document.getElementById("zOut").onclick = () => { S.view.s /= 1.18; draw(); };
 document.getElementById("zFit").onclick = fitView;
 document.getElementById("btnGo3D").onclick = () => {
+  if (S.scaleEstimated) { toast("请先标定一段实际长度，再生成尺寸准确的 3D"); return; }
   const scene = buildScene();
   if (!scene) { toast("先完成墙体与家具"); return; }
-  localStorage.setItem("immersehome.scene", JSON.stringify(scene));
-  location.href = "/3d?scene=local";
+  SceneStore.commit(scene, {lockBaseline:true});
+  saveEditorDraft();
+  location.href = "/3d?scene=local&v=compare1";
 };
+document.getElementById("btnViewPlan").onclick = () => {
+  if (!publishPlanDraft()) return;
+  location.href = "/?scene=local&version=after&v=compare1";
+};
+function publishPlanDraft() {
+  const scene = buildScene();
+  if (!scene?.walls.length) return null;
+  try { const doc = SceneStore.commit(scene, {lockBaseline:false}); saveEditorDraft(); return doc; }
+  catch(error) { toast("户型未能保存："+error.message); return null; }
+}
+
+function resetWallEditing() {
+  wallHistory.length = 0; wallDragBefore = null; wallPress = null;
+  S.drag = null; S.draft = null; S.pending = null;
+  selectOnly(null); renderProps(true);
+  document.getElementById("btnUndoWall").disabled = true;
+}
+let editorImageCache = {image:null,data:null};
+function saveEditorDraft() {
+  if (!S.img) return;
+  try {
+    if(editorImageCache.image!==S.img){
+      const canvas=document.createElement("canvas");canvas.width=S.img.width;canvas.height=S.img.height;
+      canvas.getContext("2d").drawImage(S.img,0,0);
+      editorImageCache={image:S.img,data:canvas.toDataURL("image/jpeg",0.85)};
+    }
+    localStorage.setItem("immersehome.plan", JSON.stringify({
+      image: editorImageCache.data, pxPerM: S.pxPerM,
+      geometry: JSON.parse(wallSnapshot()), furn: S.furn.map(f => ({ ...f, sel: false })),
+      name: document.getElementById("imgInfo").textContent,
+      recovered: S.recovered,
+      documentId:S.documentId,worldFrame:S.worldFrame,scaleEstimated:S.scaleEstimated,overlay:S.overlay,
+      planName:S.planName,
+    }));
+  } catch (error) { toast("图纸较大，草稿未能保存；3D 场景已保存"); }
+}
+function restoreEditorDraft() {
+  try {
+    const raw = localStorage.getItem("immersehome.plan");
+    if (!raw) { restoreSceneForEditing(); return; }
+    const data = JSON.parse(raw);
+    if (!data.image || !data.geometry || !Array.isArray(data.geometry.walls)) return;
+    const currentDoc=SceneStore.restore();
+    if(data.documentId && currentDoc && data.documentId!==currentDoc.id){restoreSceneForEditing();return;}
+    const image = new Image();
+    image.onload = () => {
+      S.img = image; S.recovered = !!data.recovered; S.pxPerM = data.pxPerM || 0; S.walls = data.geometry.walls;
+      S.doors = (data.geometry.doors || []).map(d => ({ ...d, wall: S.walls[d.wall] || null }));
+      S.furn = data.furn || []; deskewDone = true; resetWallEditing();
+      S.documentId = data.documentId || SceneStore.restore()?.id || SceneStore.newId();
+      S.planName=data.planName || currentDoc?.updated.meta?.name || "自定义户型";
+      S.worldFrame = data.worldFrame || null; S.scaleEstimated = !!data.scaleEstimated; S.overlay = data.overlay !== false;
+      const live = SceneStore.read()?.updated;
+      if (!S.worldFrame && live?.furniture?.length && S.furn.length === live.furniture.length) {
+        const f = live.furniture.find(f=>f.id==="F-0");
+        if (f && S.pxPerM) S.worldFrame = {maxX:S.furn[0].cx+f.rect.cx*S.pxPerM,maxY:S.furn[0].cy+f.rect.cy*S.pxPerM};
+      }
+      document.getElementById("empty").classList.add("off");
+      document.getElementById("imgInfo").textContent = data.name || "上次编辑的图纸";
+      document.getElementById("kScale").textContent = S.pxPerM ? `${S.pxPerM.toFixed(1)} px / m` : "未标定";
+      document.getElementById("btnDetect").disabled = S.recovered;
+      setTool("edit"); fitView(); refreshStats(); scheduleAudit(); setStep(3);
+    };
+    image.src = data.image;
+  } catch (error) { console.warn("户型草稿读取失败", error); }
+}
+// 兼容升级前已生成的 3D 场景：没有旧图纸草稿时，恢复可编辑的几何图。
+function restoreSceneForEditing() {
+  const raw = localStorage.getItem("immersehome.scene");
+  if (!raw) return;
+  const scene = JSON.parse(raw);
+  if (!scene.walls?.length) return;
+  const points = scene.walls.flatMap(w => [w.a, w.b]);
+  (scene.furniture || []).forEach(f => points.push([f.rect.cx + f.rect.len, f.rect.cy + f.rect.wid]));
+  const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]));
+  const minY = Math.min(...points.map(p => p[1])), maxY = Math.max(...points.map(p => p[1]));
+  const ppm = Math.min(60, 1800 / Math.max(maxX - minX, maxY - minY, 1)), margin = 40;
+  const P = p => [margin + (maxX - p[0]) * ppm, margin + (maxY - p[1]) * ppm];
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil((maxX - minX) * ppm + margin * 2);
+  canvas.height = Math.ceil((maxY - minY) * ppm + margin * 2);
+  const g = canvas.getContext("2d");
+  g.fillStyle = "#f3f0e9"; g.fillRect(0, 0, canvas.width, canvas.height);
+  S.img = canvas; S.recovered = true; S.pxPerM = ppm;
+  S.documentId = scene.meta.document_id || SceneStore.restore()?.id || SceneStore.newId();
+  S.planName=scene.meta?.name || "恢复的户型";
+  S.worldFrame = {maxX:margin+maxX*ppm,maxY:margin+maxY*ppm};
+  S.walls = scene.walls.map(w => ({ a: P(w.a), b: P(w.b), kind: w.is_window ? "window" : "wall" }));
+  S.furn = (scene.furniture || []).map(f => {
+    const p = P([f.rect.cx, f.rect.cy]);
+    return { type: f.type, name: f.name, cx: p[0], cy: p[1], len: f.rect.len, wid: f.rect.wid,
+      height: f.height, heading: ((180 - f.rect.heading) % 360 + 360) % 360 };
+  });
+  S.doors = (scene.doors || []).map(d => {
+    const p = P(d.center), hit = nearestWall(p, 2);
+    return { x: p[0], y: p[1], w: d.width * ppm, entry: !!d.is_entry,
+      ang: hit ? hit.ang : Math.atan2(-(d.normal?.[0] || 0), d.normal?.[1] || 1),
+      wall: hit ? hit.seg : null, t: hit ? hit.t : 0.5 };
+  });
+  resetWallEditing(); deskewDone = true;
+  document.getElementById("empty").classList.add("off");
+  document.getElementById("imgInfo").textContent = "从当前 3D 恢复的户型（原始底图未保存）";
+  document.getElementById("kScale").textContent = `${ppm.toFixed(1)} px / m`;
+  document.getElementById("btnDetect").disabled = true;
+  setTool("edit"); fitView(); refreshStats(); scheduleAudit(); setStep(3);
+}
 
 /* 示例图纸：没有现成图纸时也能走完整流程 */
 document.getElementById("btnDemo").onclick = () => {
@@ -1481,15 +1879,33 @@ document.getElementById("btnDemo").onclick = () => {
   label("客厅", 1.6, 3.4); label("主卧", 1.8, 8.0); label("次卧", 6.8, 7.0);
   label("厨房", 6.8, 1.6); label("卫生间", 4.2, 3.6);
 
+  // 示例也包含可识别的真实线稿符号，便于核对自动家具识别流程。
+  g.strokeStyle="#303030";g.lineWidth=1.8;
+  const bedSymbol=(x,z,w)=>{
+    const bx=X(x)-w*PX/2,by=Y(z)-PX;
+    g.strokeRect(bx,by,w*PX,2*PX);
+    g.strokeRect(bx+6,by+8,w*PX*.37,18);g.strokeRect(bx+w*PX*.55,by+8,w*PX*.37,18);
+    g.beginPath();g.moveTo(bx,by+PX*.85);g.lineTo(bx+w*PX,by+PX*.85);g.stroke();
+  };
+  bedSymbol(1.8,7.8,1.5);bedSymbol(6.8,7.8,1.2);
+  const sx=X(1.7)-PX*1.05,sy=Y(2.4)-PX*.4;
+  g.strokeRect(sx,sy,PX*2.1,PX*.8);
+  for(let i=0;i<3;i++)g.strokeRect(sx+5+i*PX*.67,sy+9,PX*.57,PX*.52);
+
   S.img = c;
+  S.documentId = SceneStore.newId(); S.worldFrame = null; S.scaleEstimated = false;
+  S.planName="示例图纸";
+  S.recovered = false;
   deskewDone = false;
-  S.walls = []; S.doors = []; S.furn = []; S.pxPerM = 0; S.audit = null;
+  S.walls = []; S.doors = []; S.furn = []; S.pxPerM = PX; S.audit = null;
+  resetWallEditing();
   document.getElementById("empty").classList.add("off");
   document.getElementById("imgInfo").textContent = `示例图纸 · ${W}×${H}`;
   document.getElementById("btnDetect").disabled = false;
   document.getElementById("btnGo3D").disabled = false;
   fitView(); refreshStats(); setStep(1);
-  toast("已载入示例图纸，点右上「自动识墙」");
+  toast("示例图纸已载入，正在识别墙体和家具");
+  setTimeout(()=>recognizePlanElements(),30);
 };
 
 /* 粘贴图片 */
@@ -1509,6 +1925,9 @@ function toast(msg) {
 window.__plan = S;
 window.__audit = runAudit;
 window.__scene = buildScene;
+addEventListener("storage",e=>{if(e.key==="immersehome.plan")restoreEditorDraft();});
+addEventListener("pageshow",e=>{if(e.persisted)restoreEditorDraft();});
+restoreEditorDraft();
 fitCanvas();
 </script>
 </body>
