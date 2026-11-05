@@ -1,0 +1,481 @@
+{
+  "cases": [
+    {
+      "id": "L01",
+      "name": "原木清新",
+      "image": "/reference-pack/L01-room.png",
+      "planImage": "/reference-pack/L01-plan.png",
+      "objects": [
+        {
+          "id": "L01-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L01-bed-001.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": [
+            "床尾与枕头边缘仍有细碎漏分"
+          ]
+        },
+        {
+          "id": "L01-wardrobe-001",
+          "key": "wardrobe",
+          "label": "衣柜",
+          "image": "/reference-pack/L01-wardrobe-001.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-nightstand-001",
+          "key": "nightstand",
+          "label": "前侧双抽床头柜",
+          "image": "/reference-pack/L01-nightstand-001.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-nightstand-002",
+          "key": "nightstand",
+          "label": "后侧床头柜（仅台面可见）",
+          "image": "/reference-pack/L01-nightstand-002.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L01-rug-001.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-lamp-001",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L01-lamp-001.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-lamp-002",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L01-lamp-002.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-plant-001",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L01-plant-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-plant-002",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L01-plant-002.png",
+          "generatedWhiteBackground": true,
+          "qualityFlags": []
+        },
+        {
+          "id": "L01-bench-refined-001",
+          "key": "bench-refined",
+          "label": "床尾编织长凳",
+          "image": "/reference-pack/L01-bench-refined-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        }
+      ],
+      "sourceObjectCount": 24
+    },
+    {
+      "id": "L02",
+      "name": "奶油法式",
+      "image": "/reference-pack/L02-room.png",
+      "planImage": "/reference-pack/L02-plan.png",
+      "objects": [
+        {
+          "id": "L02-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L02-bed-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-wardrobe-001",
+          "key": "wardrobe",
+          "label": "衣柜",
+          "image": "/reference-pack/L02-wardrobe-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-desk-001",
+          "key": "desk",
+          "label": "书桌",
+          "image": "/reference-pack/L02-desk-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": [
+            "仅前景可见桌面，画外桌腿未知"
+          ]
+        },
+        {
+          "id": "L02-chair-001",
+          "key": "chair",
+          "label": "椅子",
+          "image": "/reference-pack/L02-chair-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L02-rug-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-plant-002",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L02-plant-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-plant-003",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L02-plant-003.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L02-plant-004",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L02-plant-004.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        }
+      ],
+      "sourceObjectCount": 58
+    },
+    {
+      "id": "L03",
+      "name": "现代极简",
+      "image": "/reference-pack/L03-room.png",
+      "planImage": "/reference-pack/L03-plan.png",
+      "objects": [
+        {
+          "id": "L03-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L03-bed-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-wardrobe-001",
+          "key": "wardrobe",
+          "label": "衣柜",
+          "image": "/reference-pack/L03-wardrobe-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-desk-001",
+          "key": "desk",
+          "label": "书桌",
+          "image": "/reference-pack/L03-desk-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-chair-001",
+          "key": "chair",
+          "label": "椅子",
+          "image": "/reference-pack/L03-chair-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-nightstand-001",
+          "key": "nightstand",
+          "label": "床头柜",
+          "image": "/reference-pack/L03-nightstand-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-lamp-001",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L03-lamp-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L03-rug-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-plant-001",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L03-plant-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L03-plant-002",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L03-plant-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        }
+      ],
+      "sourceObjectCount": 23
+    },
+    {
+      "id": "L04",
+      "name": "意式轻奢",
+      "image": "/reference-pack/L04-room.png",
+      "planImage": "/reference-pack/L04-plan.png",
+      "objects": [
+        {
+          "id": "L04-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L04-bed-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-wardrobe-001",
+          "key": "wardrobe",
+          "label": "衣柜",
+          "image": "/reference-pack/L04-wardrobe-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-nightstand-002",
+          "key": "nightstand",
+          "label": "床头柜",
+          "image": "/reference-pack/L04-nightstand-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-chair-001",
+          "key": "chair",
+          "label": "椅子",
+          "image": "/reference-pack/L04-chair-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L04-rug-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-plant-001",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L04-plant-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-plant-002",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L04-plant-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L04-desk-refined-001",
+          "key": "desk-refined",
+          "label": "右侧书桌",
+          "image": "/reference-pack/L04-desk-refined-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        }
+      ],
+      "sourceObjectCount": 21
+    },
+    {
+      "id": "L05",
+      "name": "日式侘寂",
+      "image": "/reference-pack/L05-room.png",
+      "planImage": "/reference-pack/L05-plan.png",
+      "objects": [
+        {
+          "id": "L05-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L05-bed-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L05-desk-001",
+          "key": "desk",
+          "label": "书桌",
+          "image": "/reference-pack/L05-desk-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L05-chair-001",
+          "key": "chair",
+          "label": "椅子",
+          "image": "/reference-pack/L05-chair-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L05-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L05-rug-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L05-lamp-001",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L05-lamp-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L05-cabinet-refined-001",
+          "key": "cabinet-refined",
+          "label": "组合储物柜整体",
+          "image": "/reference-pack/L05-cabinet-refined-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        }
+      ],
+      "sourceObjectCount": 37
+    },
+    {
+      "id": "L06",
+      "name": "北欧复古",
+      "image": "/reference-pack/L06-room.png",
+      "planImage": "/reference-pack/L06-plan.png",
+      "objects": [
+        {
+          "id": "L06-bed-001",
+          "key": "bed",
+          "label": "床（含床品）",
+          "image": "/reference-pack/L06-bed-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-wardrobe-001",
+          "key": "wardrobe",
+          "label": "衣柜",
+          "image": "/reference-pack/L06-wardrobe-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-chair-001",
+          "key": "chair",
+          "label": "椅子",
+          "image": "/reference-pack/L06-chair-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-cabinet-013",
+          "key": "cabinet",
+          "label": "藤编门边柜",
+          "image": "/reference-pack/L06-cabinet-013.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-rug-001",
+          "key": "rug",
+          "label": "地毯",
+          "image": "/reference-pack/L06-rug-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-plant-002",
+          "key": "plant",
+          "label": "门外绿植（远景局部）",
+          "image": "/reference-pack/L06-plant-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-plant-003",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L06-plant-003.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-plant-004",
+          "key": "plant",
+          "label": "绿植（含盆器）",
+          "image": "/reference-pack/L06-plant-004.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-lamp-001",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L06-lamp-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-lamp-002",
+          "key": "lamp",
+          "label": "台灯",
+          "image": "/reference-pack/L06-lamp-002.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": []
+        },
+        {
+          "id": "L06-desk-refined-001",
+          "key": "desk-refined",
+          "label": "L形书桌整体",
+          "image": "/reference-pack/L06-desk-refined-001.png",
+          "generatedWhiteBackground": false,
+          "qualityFlags": [
+            "椅子与床遮挡较大，仅保留可见部分"
+          ]
+        }
+      ],
+      "sourceObjectCount": 27
+    }
+  ],
+  "notice": "参考图及分割单件不包含实测尺寸或三维几何；平面图为生成的示意图。"
+}

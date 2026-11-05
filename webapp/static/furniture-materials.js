@@ -1,0 +1,10 @@
+(function(root){
+  'use strict';
+  const materials={wood:{label:'实木',rough:.58,metal:0,color:'#bda17e'},painted:{label:'烤漆木饰面',rough:.4,metal:0,color:'#ded8c9'},fabric:{label:'织物布艺',rough:.95,metal:0,color:'#acb69b'},leather:{label:'皮革',rough:.37,metal:0,color:'#a77855'},rattan:{label:'藤编',rough:.82,metal:0,color:'#bfac80'},tatami:{label:'榻榻米草席',rough:.95,metal:0,color:'#c1b48a'},metal:{label:'金属',rough:.32,metal:.8,color:'#a7aaa7'},ceramic:{label:'洁白陶瓷',rough:.17,metal:0,color:'#f7f7f1'},acrylic:{label:'洁白亚克力',rough:.2,metal:0,color:'#f7f7f2'},steel:{label:'不锈钢',rough:.27,metal:.88,color:'#b9c3c5'},glass:{label:'镜面玻璃',rough:.08,metal:.8,color:'#d7e5df'},enamel:{label:'家电烤漆',rough:.28,metal:.25,color:'#e4e6df'},foliage:{label:'自然叶片与陶盆',rough:.9,metal:0,color:'#718f59'},electronics:{label:'屏幕与机壳',rough:.3,metal:.12,color:'#3a4140'}};
+  const groups={sofa:['fabric','leather','rattan'],bed:['wood','fabric','leather','tatami'],crib:['wood'],wardrobe:['wood','painted'],cabinet:['wood','painted'],nightstand:['wood','painted'],desk:['wood','painted'],bookshelf:['wood','painted'],shelf:['wood','painted'],table:['wood','painted'],coffee:['wood','painted'],chair:['wood','fabric','leather','rattan','metal'],screen:['wood','rattan'],floorlamp:['metal'],lamp:['metal'],bathtub:['acrylic'],toilet:['ceramic'],basin:['ceramic'],sink:['steel'],stove:['steel'],fridge:['enamel'],washer:['enamel'],mirror:['glass'],plant:['foliage'],tv:['electronics'],altar:['wood'],bench:['rattan','wood','fabric'],rug:['fabric']};
+  function options(type){return groups[type]||['wood','painted']}
+  function resolve(f){const allowed=options(f.type),key=allowed.includes(f.material)?f.material:allowed[0],spec=materials[key];const fixed=allowed.length===1;const color=!fixed&&/^#[0-9a-f]{6}$/i.test(f.color||'')?f.color:spec.color;return {...spec,key,color,fixed,options:allowed}}
+  function normalizeItem(f){const s=resolve(f);f.material=s.key;f.color=s.color;return f}
+  function normalizeScene(scene){(scene.furniture||[]).forEach(normalizeItem);return scene}
+  root.FurnitureMaterials={materials,options,resolve,normalizeItem,normalizeScene};
+})(globalThis);

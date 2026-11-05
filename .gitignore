@@ -16,3 +16,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+# Local account data and session signing key
+webapp/instance/
+__pycache__/

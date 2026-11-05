@@ -416,8 +416,10 @@
   .transform-hint b { color: var(--amber-2); font-size: 12px; }
   .transform-hint button { margin-top: 7px; }
 </style>
+<link rel="stylesheet" href="/living.css">
+<link rel="stylesheet" href="/design.css">
 </head>
-<body>
+<body class="living-3d">
 <div id="app"></div>
 <div class="scrim"></div>
 
@@ -507,6 +509,7 @@
   <div class="txt" id="loadTxt">正在构建空间</div>
 </div>
 
+<script src="/furniture-materials.js"></script>
 <script src="/scene-store.js"></script>
 <script src="/lib/three.min.js"></script>
 <script src="/lib/CopyShader.js"></script>
@@ -516,6 +519,8 @@
 <script src="/lib/RenderPass.js"></script>
 <script src="/lib/ShaderPass.js"></script>
 <script src="/lib/UnrealBloomPass.js"></script>
+<script src="/lib/GLTFLoader.js"></script>
+<script src="/render-enhancements.js"></script>
 <script>
 /* ============================================================================
    ImmerseHome · 空间诊断漫游
@@ -826,17 +831,17 @@ const FURN_COLORS = {
   floorlamp: 0xe1b959, other: 0x8c8ebd,
 };
 function furnMat(f) {
-  const st = styleOf(f);
-  if (st) {
-    const mat = new THREE.MeshStandardMaterial({
-      color: st.color, roughness: st.rough != null ? st.rough : 0.9, metalness: st.metal || 0,
-    });
-    if (f.type === "sofa" || f.type === "bed") mat.map = fabricTexture(0xffffff);
-    return mat;
-  }
-  const colors = FURN_COLORS;
-  if (f.type === "mirror") return new THREE.MeshStandardMaterial({ color: colors.mirror, transparent: true, opacity: 0.55, metalness: 0.6, roughness: 0.14 });
-  return new THREE.MeshStandardMaterial({ color: colors[f.type] || colors.other, roughness: 0.85 });
+  const spec=FurnitureMaterials.resolve(f),material=spec.key;
+  const mat=new THREE.MeshStandardMaterial({color:spec.color,roughness:spec.rough,metalness:spec.metal});
+  if(material==='fabric'||material==='tatami')mat.map=fabricTexture(0xffffff);
+  else if(material==='wood'){
+    if(!furnMat.woodMap){const c=makeCanvas(256,512),p=c.getContext('2d');p.fillStyle='#f5f0e7';p.fillRect(0,0,256,512);p.lineWidth=.7;
+      for(let i=0;i<150;i++){p.strokeStyle='rgba(125,102,72,'+(.025+(i%5)*.012)+')';p.beginPath();const x=i*1.73;p.moveTo(x,0);p.bezierCurveTo(x+Math.sin(i)*3,170,x-Math.sin(i)*3,340,x,512);p.stroke();}furnMat.woodMap=toTex(c,1,1);}
+    mat.map=furnMat.woodMap;
+  }else if(material==='rattan'){mat.map=fabricTexture(0xffffff);mat.bumpMap=mat.map;mat.bumpScale=.012;}
+  else if(material==='leather'){mat.bumpMap=fabricTexture(0xffffff);mat.bumpScale=.003;}
+  if(material==='glass'){mat.transparent=true;mat.opacity=.7;}
+  return mat;
 }
 
 /* ============================================================================
@@ -854,6 +859,7 @@ async function boot() {
     }
     if (!sceneData) sceneData = await (await fetch("/api/scene/demo_scene")).json();
     if (sceneData.meta?.scale_estimated) { location.href="/plan?v=compare1"; return; }
+    FurnitureMaterials.normalizeScene(sceneData);
     const currentDoc = SceneStore.ensure(sceneData);
     if (!currentDoc.baselineLocked) SceneStore.commit(sceneData, {lockBaseline:true});
 
@@ -867,7 +873,9 @@ async function boot() {
     computeBounds();
     initThree();
     buildApartment();
+    LivingRender.decorate(sceneData,scene);
     rebuildFurniture();
+    LivingRender.refreshModels();
     buildTrail();
     buildSteps();
     buildRoomBar();
@@ -924,7 +932,7 @@ function initThree() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = sceneData.meta?.template_case ? .98 : 1.0;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   document.getElementById("app").appendChild(renderer.domElement);
@@ -1513,16 +1521,17 @@ function buildOneFurniture(f) {
       mkBox(0.055, LIFT, 0.055, legMat, sx * (r.len / 2 - 0.09), LIFT / 2, sz * (r.wid / 2 - 0.1), 0.012));
   } else if (f.type === "bed") {
     base = mkBox(r.len, h * 0.7, r.wid, mat, 0, h * 0.35, 0);
-    const mattress = new THREE.MeshStandardMaterial({ color: 0xf7f2e8, roughness: 1 });
+    const mattress = new THREE.MeshStandardMaterial({ color: 0xf7f2e8, map:fabricTexture(0xffffff), roughness: .95 });
     mkBox(r.len * 0.94, h * 0.4, r.wid * 0.94, mattress, 0.02, h * 0.7 + h * 0.2, 0);
     const hbH = (style && style.key === "cream") ? 0.28 : 0.4;
     mkBox(0.09, h + hbH, r.wid, mat, -r.len / 2 + 0.045, (h + hbH) / 2, 0);
-    const pillow = new THREE.MeshStandardMaterial({ color: 0xfffdf6, roughness: 1 });
+    const pillow = new THREE.MeshStandardMaterial({ color: 0xfffdf6, map:fabricTexture(0xffffff), roughness: .95 });
     [-1, 1].forEach(s => mkBox(0.32, 0.1, r.wid * 0.34, pillow, -r.len / 2 + 0.28, h + 0.03, s * r.wid * 0.22));
     mkBox(r.len * 0.52, 0.03, r.wid * 0.94,
-      new THREE.MeshStandardMaterial({ color: (style && style.accent) || FURN_COLORS.bed, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: sceneData.meta?.design_palette?.soft || (style && style.accent) || 0xa4ad95, roughness: 1 }),
       r.len * 0.2, h * 1.08, 0);
-    // 床头柜
+    // Only the demonstration scene includes decorative bedside tables.
+    if (!IS_CUSTOM) {
     const nwMat = new THREE.MeshStandardMaterial({ color: 0xa07c54, roughness: 0.68 });
     [-1, 1].forEach(s => {
       const nx = -r.len / 2 + 0.3, nz = s * (r.wid / 2 + 0.31);
@@ -1537,6 +1546,31 @@ function buildOneFurniture(f) {
       shade.position.set(nx, 0.5, nz);
       g.add(shade);
     });
+    }
+  } else if (f.type === "bathtub") {
+    const shape=new THREE.Shape(),x=r.len/2,z=r.wid/2,edge=Math.min(x,z)*.4;
+    const outline=(p,a,b,c)=>{p.moveTo(-a+c,-b);p.lineTo(a-c,-b);p.quadraticCurveTo(a,-b,a,-b+c);p.lineTo(a,b-c);p.quadraticCurveTo(a,b,a-c,b);p.lineTo(-a+c,b);p.quadraticCurveTo(-a,b,-a,b-c);p.lineTo(-a,-b+c);p.quadraticCurveTo(-a,-b,-a+c,-b);};
+    outline(shape,x,z,edge);const inner=new THREE.Path();outline(inner,x-.07,z-.07,Math.max(.04,edge-.03));shape.holes.push(inner);
+    const geo=new THREE.ExtrudeGeometry(shape,{depth:h*.82,bevelEnabled:true,bevelSize:.018,bevelThickness:.018,bevelSegments:3,steps:1});
+    const shell=new THREE.Mesh(geo,mat);shell.rotation.x=-Math.PI/2;shell.position.y=.06;g.add(shell);
+    base=mkBox(r.len*.9,.09,r.wid*.9,mat,0,.07,0,.08);
+    const drain=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.008,20),new THREE.MeshStandardMaterial({color:0xabb7b9,metalness:.9,roughness:.2}));drain.position.set(0,.12,r.wid*.28);g.add(drain);
+  } else if (f.type === "toilet") {
+    base=mkBox(r.len*.5,h*.47,r.wid*.65,mat,-r.len*.12,h*.24,0,.09);
+    mkBox(r.len*.27,h*.8,r.wid*.9,mat,-r.len*.34,h*.4,0,.04);
+    const seat=new THREE.Mesh(new THREE.TorusGeometry(r.wid*.34,.045,12,40),mat);seat.rotation.x=Math.PI/2;seat.scale.y=1.3;seat.position.set(r.len*.12,h*.58,0);g.add(seat);
+    const bowl=new THREE.Mesh(new THREE.SphereGeometry(1,28,18),mat);bowl.scale.set(r.len*.39,h*.28,r.wid*.44);bowl.position.set(r.len*.12,h*.36,0);g.add(bowl);
+  } else if (f.type === "plant") {
+    const pot=new THREE.Mesh(new THREE.CylinderGeometry(r.wid*.38,r.wid*.28,h*.3,24),new THREE.MeshStandardMaterial({color:0xc4ac86,roughness:.85}));pot.position.y=h*.15;g.add(pot);base=pot;
+    const leafMat=new THREE.MeshStandardMaterial({color:0x6d8f51,roughness:.9});for(let i=0;i<10;i++){const a=i*2.4,leaf=new THREE.Mesh(new THREE.SphereGeometry(1,12,10),leafMat);leaf.scale.set(r.len*.22,h*.19,r.wid*.12);leaf.rotation.z=Math.sin(a)*.6;leaf.position.set(Math.cos(a)*r.len*.27,h*(.42+i*.035),Math.sin(a)*r.wid*.27);g.add(leaf);}
+  } else if (f.type === "chair") {
+    base=mkBox(r.len,.07,r.wid,mat,0,h*.5,0,.04);mkBox(.07,h*.5,r.wid,mat,-r.len*.44,h*.75,0,.04);for(const sx of [-1,1])for(const sz of [-1,1])mkBox(.035,h*.5,.035,MAT.baseboard,sx*r.len*.38,h*.25,sz*r.wid*.38,.01);
+  } else if (f.type === "desk" || f.type === "nightstand" || f.type === "cabinet") {
+    base=mkBox(r.len,.05,r.wid,mat,0,h-.025,0,.025);for(const sx of [-1,1])for(const sz of [-1,1])mkBox(.045,h-.05,.045,mat,sx*(r.len/2-.05),(h-.05)/2,sz*(r.wid/2-.05),.012);
+    if(f.type!=='desk')mkBox(r.len*.94,h*.7,r.wid*.94,mat,0,h*.55,0,.02);
+    if(f.type==='desk'){mkBox(.035,.27,.38,new THREE.MeshStandardMaterial({color:0x444f48,roughness:.4}),-.06,h+.14,0,.012);}
+  } else if (f.type === "basin") {
+    base=mkBox(r.len,h*.75,r.wid,mat,0,h*.375,0,.04);const bowl=new THREE.Mesh(new THREE.TorusGeometry(Math.min(r.len,r.wid)*.35,.035,12,32),mat);bowl.rotation.x=Math.PI/2;bowl.position.y=h*.8;g.add(bowl);
   } else if (f.type === "stove") {
     base = mkBox(r.len, h, r.wid, mat, 0, h / 2, 0);
     mkBox(r.len * 0.98, 0.03, r.wid * 0.98,
@@ -1623,6 +1657,7 @@ function buildOneFurniture(f) {
   } });
   scene.add(g);
   furnGroups[f.id] = g;
+  LivingRender.attach(f,g);
 
   // 接地阴影
   const rad = r.heading * Math.PI / 180;
@@ -2614,7 +2649,7 @@ function saveAdjustedScene(before) {
     sceneData.furniture.forEach((f, i) => {
       const target = draft.furn[i];
       Object.assign(target, { cx: ox - f.rect.cx * ppm, cy: oy - f.rect.cy * ppm,
-        heading: ((180 - f.rect.heading) % 360 + 360) % 360 });
+        heading: ((180 - f.rect.heading) % 360 + 360) % 360, material:f.material, color:f.color });
     });
     localStorage.setItem("immersehome.plan", JSON.stringify(draft));
   } catch (error) { showToast("本次调整已生效，但浏览器存储已满，刷新后可能无法保留"); }
@@ -2815,7 +2850,7 @@ function bindInput() {
 
   let wheelLock = 0;
   addEventListener("wheel", e => {
-    if (roam || gizmoDrag || e.target.closest?.(".manual-panel")) return;
+    if (roam || gizmoDrag || e.target.closest?.(".manual-panel,.living-chat-box,.living-modal")) return;
     const now = Date.now();
     if (now - wheelLock < 900) return;
     if (e.deltaY > 22) { wheelLock = now; nextStep(); }
@@ -3077,5 +3112,7 @@ window.__state = () => ({ step: stepIdx, item: itemIdx, viol: auditResult ? audi
 
 boot();
 </script>
+<script src="/living.js"></script>
+<script src="/cloud-models.js"></script>
 </body>
 </html>

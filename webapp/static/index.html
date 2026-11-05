@@ -343,8 +343,10 @@
   .version-bar .btn:disabled { opacity: .45; cursor: default; }
   .version-info { font-size: 11.5px; color: var(--text-secondary); line-height: 1.6; }
 </style>
+<link rel="stylesheet" href="/living.css">
+<link rel="stylesheet" href="/design.css">
 </head>
-<body>
+<body class="living-diagnostic">
 <div class="bokeh b1"></div><div class="bokeh b2"></div><div class="bokeh b3"></div>
 
 <div class="topbar">
@@ -357,15 +359,16 @@
     <select id="sceneSelect" class="btn" title="选择示例户型">
       <option value="">选择户型…</option>
     </select>
-    <a class="btn" href="/plan?v=compare1" style="text-decoration:none;border-color:rgba(233,162,76,.5);color:#ffd79a;background:rgba(233,162,76,.12)"
+    <a class="btn" href="/plan?v=compare1" style="text-decoration:none"
        title="上传户型图照片 → 自动识墙 → 摆家具 → 生成 3D">🖼 上传户型图</a>
     <button class="btn" id="uploadBtn" title="直接上传户型 JSON（高级）">⬆ JSON</button>
-    <button class="btn" id="cultureBtn" title="启用命卦文化参考">☯ 命卦参考</button>
+    <button class="btn" id="cultureBtn" title="启用命卦文化参考">☯ 文化参考</button>
     <a class="btn" id="go3dLink" href="/3d?scene=local&v=compare1" title="继续编辑当前户型" style="text-decoration:none">🌐 3D 总览调整</a>
     <button class="btn primary" id="auditBtn">⚡ 开始诊断</button>
   </div>
 </div>
 
+<section class="living-welcome"><div><div class="living-eyebrow">A BETTER SPACE, A BETTER EVERYDAY</div><h1>让每一处，都恰到好处。</h1><p>从一张户型图，或生活里的一角开始。<br>让布局更合理，也让生活更舒心。</p></div><a class="living-route" href="/plan"><small>PLAN YOUR HOME</small><strong>装修规划 / 布置新家 <span>↗</span></strong><p>上传户型图 → 自动识墙 → 家具布置 → 三维查看</p></a><a class="living-route" href="/refresh"><small>REFRESH YOUR EVERYDAY</small><strong>日常微调 / 租屋焕新 <span>↗</span></strong><p>拍下房间一角，获得贴近生活目标的轻量建议。</p></a></section>
 <div class="main">
   <!-- 左侧浮动卡 -->
   <div class="dock">
@@ -386,7 +389,7 @@
         <div class="score-ring" id="scoreRing"></div>
         <div class="score-caption">
           <div class="big" id="scoreVerdict">等待诊断</div>
-          <div class="sub">基于 18 条风水几何规则的空间健康评估</div>
+          <div class="sub">基于 20 条布局规则的几何检查 · 文化参考</div>
         </div>
       </div>
       <div class="stats-grid">
@@ -453,6 +456,7 @@
 <input type="file" id="fileInput" accept=".json" style="display:none" />
 <div class="loading" id="loading"><div class="spinner"></div></div>
 
+<script src="/furniture-materials.js"></script>
 <script src="/scene-store.js"></script>
 <script>
 // ============================================================
@@ -491,7 +495,7 @@ const COLORS = {
 
 // 房间暖色粉彩（对应 Figma 户型图的桃橙配色）
 const ROOM_COLORS = {
-  "主卧": "#ffe3cc", "次卧": "#fff0d6", "卧室": "#ffe9d4",
+  "主卧": "#e7ddc8", "次卧": "#eee5d2", "卧室": "#e9dfca",
   "客厅": "#e9f0da", "餐厅": "#ffe0c4", "厨房": "#f4ead4",
   "卫生间": "#dfeef1", "卫": "#dfeef1", "阳台": "#e6f0e0", "玄关": "#f6ecd8",
 };
@@ -657,6 +661,8 @@ async function runAudit() {
 
 function toggleCulture() {
   cultureEnabled = !cultureEnabled;
+  renderCulturePanel();
+  document.querySelector('[data-tab="culture"]').click();
   const btn = document.getElementById("cultureBtn");
   btn.classList.toggle("toggled", cultureEnabled);
   if (auditResult) runAudit();
@@ -726,21 +732,7 @@ function renderResults() {
     '<div class="passed-item"><span class="passed-dot"></span>' + p.name +
     '<span style="color:var(--text-muted);font-size:11px;margin-left:auto;">' + p.rule_id + "</span></div>").join("");
 
-  // 文化参考
-  const cbox = document.getElementById("cultureBox");
-  const c = auditResult.culture_reference;
-  if (c.enabled && c.available) {
-    cbox.innerHTML = `
-      <div class="culture-box">
-        <div class="culture-title">☯ 八宅派命卦 · 文化参考</div>
-        <div class="culture-text">${c.text}</div>
-        <div class="culture-text" style="margin-top:8px;">命卦：${c.ming_gua.name}（${c.ming_gua.group}）<br>宅向：坐${c.house.sitting}朝${c.house.facing}（${c.house.gua}宅）</div>
-        <ul class="culture-limits">${c.limits.map(l => "<li>" + l + "</li>").join("")}</ul>
-      </div>`;
-  } else {
-    cbox.innerHTML = '<div class="empty-state"><div class="icon">☯</div><div>' +
-      (c.reason || "点击顶部「命卦参考」按钮启用") + "</div></div>";
-  }
+  renderCulturePanel();
 
   if (s.skipped > 0) {
     const note = document.createElement("div");
@@ -917,7 +909,7 @@ function drawFurniture(f, bounds) {
   else if (type === "mirror") { fill = COLORS.mirror; stroke = "rgba(130,160,210,0.7)"; }
   else if (type === "wardrobe") { fill = COLORS.wardrobe; stroke = COLORS.wardrobeBorder; }
 
-  ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+  ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(f.color || "") ? f.color : fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(corners[0][0], corners[0][1]);
   corners.slice(1).forEach(c => ctx.lineTo(c[0], c[1]));
@@ -1066,5 +1058,9 @@ function toast(msg) {
 
 init();
 </script>
+<script src="/living.js"></script>
+<script src="/cloud-models.js"></script>
+<script src="/book-references.js"></script>
+<script src="/culture-panel.js"></script>
 </body>
 </html>

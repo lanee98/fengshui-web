@@ -22,78 +22,61 @@ import check  # noqa: E402  风水审查引擎
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
+from space_agent import install_space_agent
+install_space_agent(app)
+
+from accounts import install_accounts
+install_accounts(app)
+
+from aholo import install_aholo
+install_aholo(app)
+
+from designs import install_designs
+install_designs(app)
+
+from book_library import install_book_library
+install_book_library(app)
+
+@app.post('/api/culture-reference')
+def culture_reference():
+    import minggua, region, lumanchi
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(error='请填写文化参考资料'), 400
+    try:
+        year = data.get('birth_year')
+        owner = None
+        if year:
+            year = int(year)
+            if not 1900 <= year <= 2100 or data.get('gender') not in ('male', 'female'):
+                raise ValueError()
+            owner = {'birth_year': year, 'gender': data['gender']}
+        width = data.get('width_mm')
+        ruler = None
+        if width:
+            width = float(width)
+            if not math.isfinite(width) or not 1 <= width <= 10000:
+                raise ValueError()
+            ruler = lumanchi.check(width)
+        scene = data.get('scene') or {}
+        if not isinstance(scene, dict):
+            raise ValueError()
+        return jsonify(minggua=minggua.check_owner(owner, check.Scene(scene)), region=region.check_region(str(data.get('region', ''))[:30]), ruler=ruler, ruler_limits=lumanchi.LIMITS)
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return jsonify(error='请核对出生年份、传统计算选项、尺寸和户型数据'), 400
+
+
+@app.route("/refresh")
+def room_refresh():
+    return send_from_directory(app.static_folder, "refresh.html")
+
 
 def run_audit(scene_data: dict, culture: bool = False) -> dict:
-    """直接对 scene dict 运行审查，绕过文件 IO。"""
-    s = check.Scene(scene_data)
-    violations, passed, skipped = [], [], []
-
-    for rid, name, cat, sev, fn, suggestion, vtext in check.RULES:
-        try:
-            res = fn(s)
-        except Exception as e:
-            skipped.append({"rule_id": rid, "name": name,
-                            "reason": "%s: %s" % (type(e).__name__, e)})
-            continue
-        if res is None:
-            passed.append({"rule_id": rid, "name": name})
-            continue
-        objs = res.get("objects", [])
-        label = []
-        for o in objs:
-            nm = ""
-            for f in s.furn:
-                if f["id"] == o:
-                    nm = f["name"]
-            for d in s.doors:
-                if d["id"] == o:
-                    nm = d["name"]
-            for w in s.walls:
-                if w["id"] == o:
-                    nm = check.wall_label(s, w)
-            for b in s.beams:
-                if b["id"] == o:
-                    nm = b.get("name") or o
-            label.append(nm or o)
-        violations.append({
-            "rule_id": rid,
-            "name": name,
-            "category": cat,
-            "severity": sev,
-            "objects": objs,
-            "object_labels": label,
-            "violation_text": vtext,
-            "suggestion": check._fill(suggestion, label),
-            "detail": res.get("detail", ""),
-            "measured": res.get("measured"),
-        })
-
-    violations.sort(key=lambda v: (check.SEVERITY_ORDER.get(v["severity"], 9), v["rule_id"]))
-    counts = {"high": 0, "medium": 0, "low": 0}
-    for v in violations:
-        counts[v["severity"]] = counts.get(v["severity"], 0) + 1
-
-    if culture:
-        import minggua
-        culture_ref = minggua.check_owner(scene_data.get("meta", {}).get("owner"), s)
-    else:
-        culture_ref = {"enabled": False, "reason": "文化参考模块未启用。"}
-
-    return {
-        "scene": scene_data.get("meta", {}).get("name", "未命名户型"),
-        "rule_version": "v1.0",
-        "rule_count": len(check.RULES),
-        "summary": {
-            "violations": len(violations),
-            "by_severity": counts,
-            "passed": len(passed),
-            "skipped": len(skipped),
-        },
-        "violations": violations,
-        "passed_rules": passed,
-        "skipped": skipped,
-        "culture_reference": culture_ref,
-    }
+    """Use the upstream v1.2 engine, preserving skips and multi-instance results."""
+    with tempfile.TemporaryDirectory() as directory:
+        target = Path(directory) / 'scene.json'
+        target.write_text(json.dumps(scene_data, ensure_ascii=False), encoding='utf-8')
+        return check.run(str(target), culture=culture)
 
 
 @app.route("/")
@@ -306,7 +289,10 @@ def auto_repair(source, audit, rule_id=None):
                         continue
                     trial_scene = check.Scene(data)
                     target = functions[rid](trial_scene)
-                    if target is not None and item["id"] in target.get("objects", []):
+                    if isinstance(target, tuple) and target[0] == "SKIP":
+                        continue
+                    target_items = target if isinstance(target, list) else [target] if target else []
+                    if any(item["id"] in entry.get("objects", []) for entry in target_items):
                         continue
                     trial = audit(data)
                     trial_ids = {v["rule_id"] for v in trial["violations"]}

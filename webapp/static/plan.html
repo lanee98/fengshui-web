@@ -218,13 +218,15 @@
   .modal .row { display: flex; gap: 8px; justify-content: flex-end; }
   input[type=file] { display: none; }
 </style>
+<link rel="stylesheet" href="/living.css">
+<link rel="stylesheet" href="/design.css">
 </head>
-<body>
+<body class="living-plan">
 
 <header class="top">
   <div class="brand">
     <div class="brand-logo">⌂</div>
-    <div><b>ImmerseHome</b><span>户型图识别 · 建面 2D→3D</span></div>
+    <div><b>ImmerseHome</b><span>二维布局 · 让家各得其所</span></div>
   </div>
   <div class="steps-top" id="stepsTop">
     <span class="done"><i>1</i><b>上传图纸</b></span><span class="sep">›</span>
@@ -296,7 +298,7 @@
   <div class="empty" id="empty">
     <div class="dropzone" id="dropzone">
       <div class="big">🗺</div>
-      <h3>拖入一张户型图</h3>
+      <h3>拖入一张户型图</h3><a class="living-button primary" href="/design" style="display:inline-block;margin:12px 0;text-decoration:none">不想画图？一键布置 →</a>
       <p>开发商平面图、中介户型图、手绘草图都行。<br />上传后自动识别墙线，也可手动描。</p>
     </div>
   </div>
@@ -320,7 +322,7 @@
   </div>
 
   <div class="card">
-    <h4>实时光环境体检</h4>
+    <h4>实时空间诊断</h4>
     <div class="sub" id="auditSub">摆放家具后自动调用 18 条规则引擎</div>
     <div class="score" id="scoreRow" style="display:none">
       <span class="n h" id="nHigh">0</span><span class="cap">高优先</span>
@@ -345,6 +347,7 @@
   </div>
 </div>
 
+<script src="/furniture-materials.js"></script>
 <script src="/scene-store.js"></script>
 <script src="/plan-recognition.js"></script>
 <script>
@@ -357,7 +360,7 @@ const ctx = cv.getContext("2d");
 const stage = document.getElementById("stage");
 
 const S = {
-  img: null,
+  img: null, sourceMeta: {},
   recovered: false,
   documentId: null, worldFrame: null, scaleEstimated: false, overlay: true, recognizing: false, planName:"自定义户型",
   view: { s: 1, tx: 0, ty: 0 },
@@ -451,12 +454,20 @@ const FURN_DEFS = [
   { type: "washer", cat: "其他", name: "洗衣机", len: 0.6, wid: 0.6, height: 0.85, icon: "🧺" },
   { type: "altar", cat: "其他", name: "神位/财位", len: 0.4, wid: 0.9, height: 1.2, icon: "🕯" },
 ];
+FURN_DEFS.push(
+ {type:"sofa",cat:"客厅",name:"皮革沙发",len:.95,wid:2.2,height:.66,icon:"▱",material:"leather",color:"#aa805b"},
+ {type:"sofa",cat:"客厅",name:"布艺沙发",len:.9,wid:2.1,height:.65,icon:"▱",material:"fabric",color:"#acb99b"},
+ {type:"bed",cat:"卧室",name:"榻榻米",len:2,wid:1.8,height:.25,icon:"▤",material:"tatami",color:"#c4b58e"},
+ {type:"bed",cat:"卧室",name:"实木床",len:2,wid:1.5,height:.5,icon:"▤",material:"wood",color:"#c7ad85"},
+ {type:"chair",cat:"书房",name:"藤编椅",len:.5,wid:.5,height:.9,icon:"◡",material:"rattan",color:"#bfa878"},
+ {type:"plant",cat:"其他",name:"发财树",len:.4,wid:.4,height:1.1,icon:"♧",material:"wood",color:"#80996b"}
+);
 const FURN_CATS = ["卧室", "客厅", "餐厨", "卫浴", "书房", "其他"];
 
 /* ---------------------------------------------------------------- 画布尺寸 */
 function fitCanvas() {
   const dpr = Math.min(devicePixelRatio, 2);
-  const w = stage.clientWidth, h = stage.clientHeight;
+  const w = cv.clientWidth || stage.clientWidth, h = cv.clientHeight || stage.clientHeight;
   cv.width = w * dpr; cv.height = h * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   draw();
@@ -481,7 +492,7 @@ function fitView() {
 function draw() {
   const w = cv.clientWidth, h = cv.clientHeight;
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#1d1811"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#eff2e8"; ctx.fillRect(0, 0, w, h);
 
   if (S.img && !S.overlay) {
     ctx.fillStyle = "#f3f0e9";
@@ -574,6 +585,7 @@ function drawSeg(seg, i) {
 }
 
 function drawFurniture(f, i) {
+  FurnitureMaterials.normalizeItem(f);
   const c = toScreen([f.cx, f.cy]);
   const s = S.view.s;
   ctx.save();
@@ -581,12 +593,22 @@ function drawFurniture(f, i) {
   ctx.rotate(-f.heading * Math.PI / 180);
   if (f.flip) ctx.scale(-1, 1);
   const L = f.len * S.pxPerM * s, W = f.wid * S.pxPerM * s;
-  const fills = {bed:"#a4d2ca",sofa:"#a3c6e0",table:"#e9c88c",other:"#cebfdc"};
-  ctx.fillStyle = f.sel ? "rgba(233,162,76,.55)" : (S.overlay ? "rgba(116,169,185,.30)" : (fills[f.type] || "#c6d2ba"));
+  const fills = {bed:"#d6cab4",sofa:"#aebd9c",table:"#c5ae87",other:"#c5bfad"};
+  ctx.fillStyle = f.sel ? "#c3d0ad" : (/^#[0-9a-f]{6}$/i.test(f.color || "") ? f.color : (S.overlay ? "rgba(159,177,137,.45)" : (fills[f.type] || "#c9b895")));
   ctx.strokeStyle = f.sel ? "#cf7e23" : (S.overlay ? "#6d8c9a" : "#647078");
   ctx.lineWidth = f.sel ? 2 : 1.4;
   roundRect(-L / 2, -W / 2, L, W, 4);
   ctx.fill(); ctx.stroke();
+  // Furniture details remain tied to the original measured geometry.
+  if (f.type === "bed" && L > 25 && W > 25) {
+    ctx.fillStyle="#f5f1e5";ctx.fillRect(-L/2+5,-W/2+5,L*.19,W*.4);ctx.fillRect(-L/2+5,W*.05,L*.19,W*.4);
+    ctx.fillStyle="rgba(143,163,121,.6)";ctx.fillRect(L*.17,-W/2+3,L*.19,W-6);
+  } else if (f.type === "sofa" && L > 25 && W > 25) {
+    ctx.strokeStyle="#839571";ctx.lineWidth=1;roundRect(-L/2+5,-W/2+5,L-10,W-10,4);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-L/2+5,0);ctx.lineTo(L/2-5,0);ctx.stroke();
+  } else if (f.type === "plant") {
+    ctx.fillStyle="#799563";ctx.beginPath();ctx.ellipse(0,0,Math.max(4,L*.32),Math.max(4,W*.32),.5,0,Math.PI*2);ctx.fill();
+  }
   // 朝向前缘标记（让人看得出哪边是"头"）
   ctx.strokeStyle = f.sel ? "#cf7e23" : "#647078";
   ctx.lineWidth = 2;
@@ -594,8 +616,11 @@ function drawFurniture(f, i) {
   ctx.fillStyle = S.overlay ? "#34434a" : "#3f4a50";
   ctx.font = "600 10px -apple-system, sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  if (Math.max(W,L) > 34) ctx.fillText(f.name, 0, 0);
   ctx.restore();
+  if (Math.max(W,L) > 34) {
+    ctx.save();ctx.fillStyle="#46513e";ctx.font="500 10px -apple-system, sans-serif";
+    ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(f.name,c[0],c[1]);ctx.restore();
+  }
   // 选中时：旋转手柄（顶端小圆点，拖着它自由转）
   if (f.sel) {
     const hp = rotHandlePos(f);
@@ -633,7 +658,7 @@ function loadImage(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
-    S.img = img;
+    S.img = img; S.sourceMeta = {};
     S.recovered = false;
     S.documentId = SceneStore.newId(); S.worldFrame = null; S.scaleEstimated = true;
     S.planName=file.name.replace(/\.[^.]+$/,"");
@@ -1351,7 +1376,7 @@ function placeFurniture(def, ip) {
     type: def.type, name: def.name,
     cx: p[0], cy: p[1],
     len: def.len, wid: def.wid, height: def.height,
-    heading: 0, sel: true,
+    heading: 0, sel: true, material: def.material || (def.type === "sofa" ? "fabric" : "wood"), color: def.color || "#c4ad89",
   };
   S.furn.forEach(x => x.sel = false);
   S.furn.push(f);
@@ -1640,12 +1665,12 @@ function buildScene() {
       len: +f.len.toFixed(2), wid: +f.wid.toFixed(2),
       heading: Math.round(((180 - f.heading) % 360 + 360) % 360),
     },
-    height: f.height,
+    height: f.height, material: FurnitureMaterials.resolve(f).key, color: FurnitureMaterials.resolve(f).color, referenceAssetId:f.referenceAssetId,
   }));
 
   return {
     meta: {
-      name: S.planName, unit: "m",
+      ...S.sourceMeta, name: S.planName, unit: "m",
       origin: "southwest",
       note: "由户型图识别生成",
       custom: true, document_id: S.documentId || (S.documentId = SceneStore.newId()),
@@ -1755,7 +1780,7 @@ function saveEditorDraft() {
       name: document.getElementById("imgInfo").textContent,
       recovered: S.recovered,
       documentId:S.documentId,worldFrame:S.worldFrame,scaleEstimated:S.scaleEstimated,overlay:S.overlay,
-      planName:S.planName,
+      planName:S.planName,sourceMeta:S.sourceMeta,
     }));
   } catch (error) { toast("图纸较大，草稿未能保存；3D 场景已保存"); }
 }
@@ -1773,6 +1798,7 @@ function restoreEditorDraft() {
       S.doors = (data.geometry.doors || []).map(d => ({ ...d, wall: S.walls[d.wall] || null }));
       S.furn = data.furn || []; deskewDone = true; resetWallEditing();
       S.documentId = data.documentId || SceneStore.restore()?.id || SceneStore.newId();
+      S.sourceMeta=data.sourceMeta || currentDoc?.updated.meta || {};
       S.planName=data.planName || currentDoc?.updated.meta?.name || "自定义户型";
       S.worldFrame = data.worldFrame || null; S.scaleEstimated = !!data.scaleEstimated; S.overlay = data.overlay !== false;
       const live = SceneStore.read()?.updated;
@@ -1808,13 +1834,14 @@ function restoreSceneForEditing() {
   g.fillStyle = "#f3f0e9"; g.fillRect(0, 0, canvas.width, canvas.height);
   S.img = canvas; S.recovered = true; S.pxPerM = ppm;
   S.documentId = scene.meta.document_id || SceneStore.restore()?.id || SceneStore.newId();
+  S.sourceMeta=scene.meta || {};
   S.planName=scene.meta?.name || "恢复的户型";
   S.worldFrame = {maxX:margin+maxX*ppm,maxY:margin+maxY*ppm};
   S.walls = scene.walls.map(w => ({ a: P(w.a), b: P(w.b), kind: w.is_window ? "window" : "wall" }));
   S.furn = (scene.furniture || []).map(f => {
     const p = P([f.rect.cx, f.rect.cy]);
     return { type: f.type, name: f.name, cx: p[0], cy: p[1], len: f.rect.len, wid: f.rect.wid,
-      height: f.height, heading: ((180 - f.rect.heading) % 360 + 360) % 360 };
+      referenceAssetId:f.referenceAssetId, material: FurnitureMaterials.resolve(f).key, color: FurnitureMaterials.resolve(f).color, height: f.height, heading: ((180 - f.rect.heading) % 360 + 360) % 360 };
   });
   S.doors = (scene.doors || []).map(d => {
     const p = P(d.center), hit = nearestWall(p, 2);
@@ -1930,5 +1957,7 @@ addEventListener("pageshow",e=>{if(e.persisted)restoreEditorDraft();});
 restoreEditorDraft();
 fitCanvas();
 </script>
+<script src="/living.js"></script>
+<script src="/cloud-models.js"></script>
 </body>
 </html>
